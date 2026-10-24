@@ -189,8 +189,12 @@ if [ "$MODE" = "multi" ]; then
 
   # Kimi Code
   mkdir -p "$KIMI_SKILLS"
-  safe_link "$SKILLS_SRC/qa" "$KIMI_SKILLS/qa"
-  echo "✅ Kimi Code skill (/qa) enlazada ($KIMI_SKILLS)"
+  for s in qa pipeline-plan pipeline-code; do
+    if [ -d "$SKILLS_SRC/$s" ]; then
+      safe_link "$SKILLS_SRC/$s" "$KIMI_SKILLS/$s"
+    fi
+  done
+  echo "✅ Kimi Code skills (qa, pipeline-plan, pipeline-code) enlazadas ($KIMI_SKILLS)"
 
   # Estándar universal compartido ~/.agents/skills
   mkdir -p "$AGENTS_SHARED_SKILLS"
