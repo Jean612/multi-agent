@@ -98,6 +98,38 @@ async function appendLog(logFile, content) {
 }
 
 /**
+ * Escribe el estado en vivo del pipeline en `.pipeline/runtime.json` (best-effort).
+ * Es la telemetría pasiva que lee Mission Control para iluminarse cuando el loop
+ * corre en otro proceso (p. ej. lanzado por Antigravity vía CLI).
+ * Nunca lanza: si el filesystem falla, el pipeline continúa.
+ * @param {string} projectDir Directorio del proyecto.
+ * @param {{running: boolean, action?: string|null, step?: string|null, iteration?: number, qaEngine?: string|null, status?: string|null}} data
+ * @returns {Promise<void>}
+ */
+export async function writeRuntimeState(projectDir, data = {}) {
+  try {
+    const pipelineDir = path.join(projectDir, '.pipeline');
+    await fs.mkdir(pipelineDir, { recursive: true });
+    const payload = {
+      running: data.running === true,
+      action: data.action ?? null,
+      step: data.step ?? null,
+      iteration: Number.isFinite(data.iteration) ? data.iteration : 1,
+      qaEngine: data.qaEngine ?? null,
+      updatedAt: new Date().toISOString(),
+    };
+    if (data.status) payload.status = data.status;
+    await fs.writeFile(
+      path.join(pipelineDir, 'runtime.json'),
+      JSON.stringify(payload, null, 2) + '\n',
+      'utf8'
+    );
+  } catch {
+    // La telemetría es best-effort: nunca debe romper el pipeline.
+  }
+}
+
+/**
  * Ejecuta un proceso hijo con spawn y loguea stdout/stderr.
  * @param {string} command
  * @param {string[]} args
@@ -141,11 +173,13 @@ async function spawnAndLog(command, args, cwd, logFile) {
 
 /**
  * Ejecuta un paso del pipeline (code | fix | qa) con soporte de fallback automático en QA.
+ * Si `!dryRun`, publica telemetría best-effort en `.pipeline/runtime.json`
+ * (`running: true` antes del agente y `running: false` al terminar).
  * @param {'code'|'fix'|'qa'} step
- * @param {{projectDir: string, runner?: Function, dryRun?: boolean, qaEngine?: 'kimi'|'opencode', qaModel?: string}} deps
+ * @param {{projectDir: string, runner?: Function, dryRun?: boolean, qaEngine?: 'kimi'|'opencode', qaModel?: string, iteration?: number, runtimeAction?: string}} deps
  * @returns {Promise<{step: string, command: string, args: string[], cwd: string, dryRun: boolean, exitCode: number, logFile?: string, fallbackFrom?: string, qaEngine?: string, [key: string]: unknown}>}
  */
-export async function runStep(step, { projectDir, runner, dryRun = false, qaEngine, qaModel } = {}) {
+export async function runStep(step, { projectDir, runner, dryRun = false, qaEngine, qaModel, iteration = 1, runtimeAction } = {}) {
   if (!VALID_STEPS.has(step)) {
     throw new Error(`Paso desconocido: '${step}'. Válidos: ${[...VALID_STEPS].join(' | ')}`);
   }
@@ -158,67 +192,77 @@ export async function runStep(step, { projectDir, runner, dryRun = false, qaEngi
   }
 
   const result = { step, command, args, cwd, dryRun: false, qaEngine: resolveBins(stepOptions).qaEngine };
+  // `runtimeAction: 'loop'` lo inyecta runPipelineLoop para que la telemetría
+  // distinga una corrida orquestada de un paso suelto lanzado desde la GUI/CLI.
+  const runtimeBase = { action: runtimeAction || step, step, iteration };
+  await writeRuntimeState(projectDir, { ...runtimeBase, running: true, qaEngine: result.qaEngine });
 
-  if (runner) {
-    const injected = await runner({ step, command, args, cwd, qaEngine: resolveBins(stepOptions).qaEngine, qaModel });
-    // Soporte de fallback en runner inyectado si simula error de cuota en Kimi:
-    if (step === 'qa' && resolveBins(stepOptions).qaEngine === 'kimi' && injected?.quotaError) {
+  try {
+    if (runner) {
+      const injected = await runner({ step, command, args, cwd, qaEngine: resolveBins(stepOptions).qaEngine, qaModel });
+      // Soporte de fallback en runner inyectado si simula error de cuota en Kimi:
+      if (step === 'qa' && resolveBins(stepOptions).qaEngine === 'kimi' && injected?.quotaError) {
+        stepOptions.qaEngine = 'opencode';
+        const fallbackCmd = buildStepCommand('qa', stepOptions);
+        const fallbackResult = await runner({
+          step,
+          command: fallbackCmd.command,
+          args: fallbackCmd.args,
+          cwd,
+          qaEngine: 'opencode',
+          qaModel: resolveBins(stepOptions).qaModel,
+        });
+        result.qaEngine = 'opencode';
+        return {
+          ...result,
+          ...fallbackResult,
+          command: fallbackCmd.command,
+          args: fallbackCmd.args,
+          exitCode: fallbackResult?.exitCode ?? 0,
+          fallbackFrom: 'kimi',
+          qaEngine: 'opencode',
+        };
+      }
+      return { ...result, exitCode: injected?.exitCode ?? 0, ...injected };
+    }
+
+    // Ejecución real con spawn + log en .pipeline/logs/.
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const logFile = path.join(projectDir, '.pipeline', 'logs', `${timestamp}-${step}.log`);
+    let outcome = await spawnAndLog(command, args, cwd, logFile);
+
+    // Fallback automático en QA: si Kimi falla o agota tokens, reintenta con OpenCode (DeepSeek/Mimo)
+    const isKimiQuotaError =
+      step === 'qa' &&
+      resolveBins(stepOptions).qaEngine === 'kimi' &&
+      (outcome.exitCode !== 0 ||
+        /quota|rate\s*limit|insufficient|balance|token\s*limit|429/i.test(`${outcome.stdout} ${outcome.stderr}`));
+
+    if (isKimiQuotaError) {
+      const chosenModel = resolveBins(stepOptions).qaModel;
+      console.error(`⚠️ Kimi Code reportó error o cuota agotada (exit ${outcome.exitCode}). Activando fallback de QA con OpenCode (${chosenModel})...`);
       stepOptions.qaEngine = 'opencode';
       const fallbackCmd = buildStepCommand('qa', stepOptions);
-      const fallbackResult = await runner({
-        step,
-        command: fallbackCmd.command,
-        args: fallbackCmd.args,
-        cwd,
-        qaEngine: 'opencode',
-        qaModel: resolveBins(stepOptions).qaModel,
-      });
+      const fallbackOutcome = await spawnAndLog(fallbackCmd.command, fallbackCmd.args, cwd, logFile);
+      result.qaEngine = 'opencode';
       return {
         ...result,
-        ...fallbackResult,
         command: fallbackCmd.command,
         args: fallbackCmd.args,
-        exitCode: fallbackResult?.exitCode ?? 0,
+        exitCode: fallbackOutcome.exitCode,
+        stdout: fallbackOutcome.stdout,
+        stderr: fallbackOutcome.stderr,
+        error: fallbackOutcome.error,
+        logFile,
         fallbackFrom: 'kimi',
         qaEngine: 'opencode',
       };
     }
-    return { ...result, exitCode: injected?.exitCode ?? 0, ...injected };
+
+    return { ...result, ...outcome, logFile };
+  } finally {
+    await writeRuntimeState(projectDir, { ...runtimeBase, running: false, qaEngine: result.qaEngine });
   }
-
-  // Ejecución real con spawn + log en .pipeline/logs/.
-  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-  const logFile = path.join(projectDir, '.pipeline', 'logs', `${timestamp}-${step}.log`);
-  let outcome = await spawnAndLog(command, args, cwd, logFile);
-
-  // Fallback automático en QA: si Kimi falla o agota tokens, reintenta con OpenCode (DeepSeek/Mimo)
-  const isKimiQuotaError =
-    step === 'qa' &&
-    resolveBins(stepOptions).qaEngine === 'kimi' &&
-    (outcome.exitCode !== 0 ||
-      /quota|rate\s*limit|insufficient|balance|token\s*limit|429/i.test(`${outcome.stdout} ${outcome.stderr}`));
-
-  if (isKimiQuotaError) {
-    const chosenModel = resolveBins(stepOptions).qaModel;
-    console.error(`⚠️ Kimi Code reportó error o cuota agotada (exit ${outcome.exitCode}). Activando fallback de QA con OpenCode (${chosenModel})...`);
-    stepOptions.qaEngine = 'opencode';
-    const fallbackCmd = buildStepCommand('qa', stepOptions);
-    const fallbackOutcome = await spawnAndLog(fallbackCmd.command, fallbackCmd.args, cwd, logFile);
-    return {
-      ...result,
-      command: fallbackCmd.command,
-      args: fallbackCmd.args,
-      exitCode: fallbackOutcome.exitCode,
-      stdout: fallbackOutcome.stdout,
-      stderr: fallbackOutcome.stderr,
-      error: fallbackOutcome.error,
-      logFile,
-      fallbackFrom: 'kimi',
-      qaEngine: 'opencode',
-    };
-  }
-
-  return { ...result, ...outcome, logFile };
 }
 
 /**
@@ -242,6 +286,33 @@ export async function runPipelineLoop({
   const history = [];
   const steps = [];
 
+  /** Cierra la telemetría del loop (best-effort) y devuelve el resultado. */
+  const finish = async (result) => {
+    if (!dryRun) {
+      await writeRuntimeState(projectDir, {
+        running: false,
+        action: 'loop',
+        step: null,
+        iteration: result.iterations ?? 0,
+        status: result.status,
+        qaEngine: resolveBins({ qaEngine, qaModel }).qaEngine,
+      });
+    }
+    return result;
+  };
+
+  /** Marca el inicio de un paso del loop en runtime.json (los pasos sueltos lo hacen en runStep). */
+  const markStepStart = async (stepName, iterationNumber) => {
+    if (dryRun) return;
+    await writeRuntimeState(projectDir, {
+      running: true,
+      action: 'loop',
+      step: stepName,
+      iteration: iterationNumber,
+      qaEngine: resolveBins({ qaEngine, qaModel }).qaEngine,
+    });
+  };
+
   if (!dryRun && runner === undefined) {
     // Validación temprana: verifica binarios según motor de QA.
     const { opencodeBin, kimiBin, qaEngine: resolvedQaEngine } = resolveBins({ qaEngine, qaModel });
@@ -251,20 +322,20 @@ export async function runPipelineLoop({
       try {
         await fs.access(bin);
       } catch {
-        return {
+        return finish({
           status: 'STALLED',
           iterations: 0,
           history,
           steps,
           reason: `Binario no encontrado: ${bin} (configura OPENCODE_BIN/KIMI_BIN)`,
-        };
+        });
       }
     }
   }
 
   let state = await analyzePipeline(projectDir);
   if (!state.planExists) {
-    return { status: 'NO_PLAN', iterations: 0, history, steps };
+    return finish({ status: 'NO_PLAN', iterations: 0, history, steps });
   }
 
   // mustRunQa: tras code/fix el handoff es siempre "nuevo" para QA. Evita el caso
@@ -276,7 +347,10 @@ export async function runPipelineLoop({
     // 1) Si falta el handoff, corre 'code'.
     if (!state.handoffExists) {
       notify({ type: 'step_start', step: 'code', iteration });
-      const result = await runStep('code', { projectDir, runner, dryRun, qaEngine, qaModel });
+      await markStepStart('code', iteration);
+      const result = await runStep('code', {
+        projectDir, runner, dryRun, qaEngine, qaModel, iteration, runtimeAction: 'loop',
+      });
       history.push({ iteration, step: 'code', exitCode: result.exitCode });
       steps.push('code');
       notify({ type: 'step_end', step: 'code', iteration, result });
@@ -290,7 +364,10 @@ export async function runPipelineLoop({
       (!state.qaExists || state.handoffMtime > state.qaMtime || mustRunQa)
     ) {
       notify({ type: 'step_start', step: 'qa', iteration });
-      const result = await runStep('qa', { projectDir, runner, dryRun, qaEngine, qaModel });
+      await markStepStart('qa', iteration);
+      const result = await runStep('qa', {
+        projectDir, runner, dryRun, qaEngine, qaModel, iteration, runtimeAction: 'loop',
+      });
       history.push({
         iteration,
         step: 'qa',
@@ -306,14 +383,17 @@ export async function runPipelineLoop({
 
     // 3) Decisiones según el estado del reporte de QA.
     if (state.qaStatus === 'APPROVED') {
-      return { status: 'APPROVED', iterations: iteration, history, steps, finalState: state };
+      return finish({ status: 'APPROVED', iterations: iteration, history, steps, finalState: state });
     }
     if (state.qaStatus === 'CHANGES_REQUIRED') {
       if (iteration >= maxRetries) {
-        return { status: 'MAX_RETRIES_EXCEEDED', iterations: iteration, history, steps, finalState: state };
+        return finish({ status: 'MAX_RETRIES_EXCEEDED', iterations: iteration, history, steps, finalState: state });
       }
       notify({ type: 'step_start', step: 'fix', iteration });
-      const result = await runStep('fix', { projectDir, runner, dryRun, qaEngine, qaModel });
+      await markStepStart('fix', iteration);
+      const result = await runStep('fix', {
+        projectDir, runner, dryRun, qaEngine, qaModel, iteration, runtimeAction: 'loop',
+      });
       history.push({ iteration, step: 'fix', exitCode: result.exitCode });
       steps.push('fix');
       notify({ type: 'step_end', step: 'fix', iteration, result });
@@ -322,17 +402,17 @@ export async function runPipelineLoop({
     }
 
     // Estado no resoluble: ni aprobado ni corrección pedida, sin pasos pendientes.
-    return {
+    return finish({
       status: 'STALLED',
       iterations: iteration,
       history,
       steps,
       finalState: state,
       reason: 'QA no devolvió APPROVED ni CHANGES_REQUIRED (reporte ausente o STATUS desconocido)',
-    };
+    });
   }
 
-  return { status: 'MAX_RETRIES_EXCEEDED', iterations: maxRetries, history, steps, finalState: state };
+  return finish({ status: 'MAX_RETRIES_EXCEEDED', iterations: maxRetries, history, steps, finalState: state });
 }
 
 /**

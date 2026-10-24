@@ -15,7 +15,7 @@ import { analyzePipeline } from './pipeline-status.mjs';
 import { runStep, runPipelineLoop, resolveBins } from './pipeline-run.mjs';
 
 const VALID_ACTIONS = new Set(['code', 'fix', 'qa', 'loop']);
-const WATCHED_FILES = new Set(['01-PLAN.md', '02-HANDOFF.md', '03-QA-REPORT.md', 'ROADMAP.md']);
+const WATCHED_FILES = new Set(['01-PLAN.md', '02-HANDOFF.md', '03-QA-REPORT.md', 'ROADMAP.md', 'runtime.json']);
 const LATEST_LOG_MAX_LINES = 200;
 
 /** Ruta absoluta de ui/index.html dentro del repositorio. */
@@ -108,18 +108,29 @@ async function readLatestLog(pipelineDir) {
 /**
  * Lee de forma segura los archivos del pipeline y el último log.
  * @param {string} projectDir Ruta del proyecto.
- * @returns {Promise<{plan: string|null, handoff: string|null, qaReport: string|null, roadmap: string|null, latestLog: string|null}>}
+ * @returns {Promise<{plan: string|null, handoff: string|null, qaReport: string|null, roadmap: string|null, latestLog: string|null, runtime: object|null}>}
  */
 export async function readPipelineFiles(projectDir) {
   const pipelineDir = path.join(projectDir, '.pipeline');
-  const [plan, handoff, qaReport, roadmap, latestLog] = await Promise.all([
+  const [plan, handoff, qaReport, roadmap, latestLog, runtimeRaw] = await Promise.all([
     safeReadText(path.join(pipelineDir, '01-PLAN.md')),
     safeReadText(path.join(pipelineDir, '02-HANDOFF.md')),
     safeReadText(path.join(pipelineDir, '03-QA-REPORT.md')),
     safeReadText(path.join(pipelineDir, 'ROADMAP.md')),
     readLatestLog(pipelineDir),
+    safeReadText(path.join(pipelineDir, 'runtime.json')),
   ]);
-  return { plan, handoff, qaReport, roadmap, latestLog };
+  let runtime = null;
+  if (runtimeRaw) {
+    try {
+      const parsed = JSON.parse(runtimeRaw);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) runtime = parsed;
+    } catch {
+      // runtime.json puede estar a medio escribir: se ignora hasta el próximo evento.
+      runtime = null;
+    }
+  }
+  return { plan, handoff, qaReport, roadmap, latestLog, runtime };
 }
 
 /**
@@ -342,13 +353,27 @@ export function createMissionControlServer(options = {}) {
       readPipelineFiles(projectDir),
       getGitInfo(projectDir),
     ]);
+    // Telemetría pasiva: si el loop corre en otro proceso (CLI/Antigravity), la
+    // memoria de este servidor dice `running: false` pero runtime.json manda.
+    let effectiveActiveRun = { ...activeRun };
+    if (!activeRun.running && files.runtime && files.runtime.running === true) {
+      effectiveActiveRun = {
+        running: true,
+        action: files.runtime.action || 'loop',
+        projectDir,
+        startedAt: files.runtime.updatedAt ?? null,
+        iteration: files.runtime.iteration ?? 1,
+        step: files.runtime.step ?? null,
+        source: 'runtime.json',
+      };
+    }
     return {
       defaultProjectDir: settings.defaultProjectDir,
       projectDir,
       status,
       files,
       git,
-      activeRun: { ...activeRun },
+      activeRun: effectiveActiveRun,
       autoWatchPlan: settings.autoWatchPlan,
       bins: resolveBins({ qaEngine: settings.qaEngine, qaModel: settings.qaModel }),
     };

@@ -40,7 +40,6 @@
   input#manual-dir { width: 260px; }
   .toggle { display: flex; align-items: center; gap: 6px; cursor: pointer; color: var(--muted); font-size: 12px; }
   .toggle input { accent-color: var(--accent); }
-  .hdr-actions { margin-left: auto; display: flex; gap: 6px; }
   button {
     background: var(--panel-2); color: var(--text); border: 1px solid var(--border);
     border-radius: 6px; padding: 6px 10px; font-family: var(--font); font-size: 12px; cursor: pointer;
@@ -171,21 +170,58 @@
   .rm-row.checked span:last-child { color: var(--muted); text-decoration: line-through; }
   .rm-key { color: var(--muted); }
   .rm-meta { font-size: 11px; color: var(--muted); line-height: 1.5; }
+  /* ---------- Banner en vivo / columna activa ---------- */
+  .live-banner {
+    margin-left: auto; font-size: 11.5px; letter-spacing: .4px; padding: 5px 10px;
+    border: 1px solid var(--border); border-radius: 999px; color: var(--muted);
+    white-space: nowrap;
+  }
+  .live-banner.waiting { color: var(--green); border-color: rgba(52, 211, 120, .45); }
+  .live-banner.running {
+    color: #1a1206; background: var(--amber); border-color: var(--amber);
+    animation: pulse-amber 1.6s infinite;
+  }
+  .column.live {
+    border-color: var(--amber);
+    box-shadow: 0 0 0 1px var(--amber), 0 0 24px rgba(255, 184, 76, .22);
+  }
+  /* ---------- Controles manuales plegables ---------- */
+  #manual-controls {
+    border: 1px solid var(--border); border-radius: 8px; background: var(--panel-2);
+  }
+  #manual-controls > summary {
+    cursor: pointer; padding: 7px 10px; font-size: 11px; color: var(--muted);
+    list-style: none; user-select: none;
+  }
+  #manual-controls > summary::-webkit-details-marker { display: none; }
+  #manual-controls > summary:hover, #manual-controls[open] > summary { color: var(--accent); }
+  #manual-controls[open] > summary { border-bottom: 1px solid var(--border); }
+  .manual-body { display: flex; flex-direction: column; gap: 8px; padding: 10px; }
+  #manual-controls textarea { min-height: 180px; }
   /* ---------- Responsivo ---------- */
   html, body { max-width: 100%; }
   header { gap: 10px; }
   .hdr-field { flex-wrap: wrap; }
-  @media (max-width: 1099px) {
+  @media (max-width: 1100px) {
     body { height: auto; min-height: 100vh; overflow-y: auto; overflow-x: hidden; }
     .mission-grid { grid-template-columns: 1fr; height: auto; overflow: visible; }
-    .column { max-height: none; }
-    .column .body { overflow: visible; }
+    .column { min-height: 280px; max-height: 65vh; }
+    .column .body { overflow: auto; }
     .hdr-field { width: 100%; }
     .hdr-field select { flex: 1; min-width: 0; }
     input#manual-dir { width: 100%; max-width: 100%; }
-    .hdr-actions { margin-left: 0; width: 100%; flex-wrap: wrap; }
-    textarea { min-height: 180px; }
+    .live-banner { margin-left: 0; width: 100%; text-align: center; white-space: normal; }
     #git-diff { max-height: 40vh; }
+  }
+  @media (max-width: 720px) {
+    header { padding: 8px 10px; gap: 8px; }
+    header h1 { font-size: 13px; white-space: normal; }
+    .mission-grid { padding: 8px; gap: 8px; }
+    .column { min-height: 240px; max-height: 70vh; }
+    select, input[type="text"], button { font-size: 11.5px; }
+    .tabs { width: 100%; }
+    .tab { flex: 1; text-align: center; }
+    pre.viewer { font-size: 11px; }
   }
 </style>
 </head>
@@ -209,12 +245,7 @@
     <input type="checkbox" id="auto-watch-toggle">
     <span>⚡ Auto-Pilot al guardar 01-PLAN.md</span>
   </label>
-  <div class="hdr-actions">
-    <button class="primary" data-action="loop">🚀 Piloto Automático (Loop)</button>
-    <button data-action="code">💻 Ejecutar Code</button>
-    <button data-action="qa">🔍 Auditar QA</button>
-    <button data-action="fix">🔧 Ejecutar Fix</button>
-  </div>
+  <div id="live-banner" class="live-banner waiting">🟢 En espera de pipeline-auto</div>
 </header>
 
 <main class="mission-grid">
@@ -226,12 +257,24 @@
         <div class="tab active" data-tab="plan">01-PLAN.md</div>
         <div class="tab" data-tab="roadmap">ROADMAP.md</div>
       </div>
-      <textarea id="plan-editor" spellcheck="false" placeholder="Aquí se carga el contenido de .pipeline/01-PLAN.md..."></textarea>
+      <pre class="viewer" id="plan-viewer">Cargando…</pre>
       <div id="roadmap-view" class="hidden"></div>
-      <div class="row" id="plan-actions">
-        <button id="save-plan-btn" class="primary">💾 Guardar 01-PLAN.md</button>
-        <button id="template-plan-btn">📝 Plantilla rápida</button>
-      </div>
+      <details id="manual-controls">
+        <summary>⚙️ Controles manuales (opcional)</summary>
+        <div class="manual-body">
+          <textarea id="plan-editor" spellcheck="false" placeholder="Aquí se carga el contenido de .pipeline/01-PLAN.md..."></textarea>
+          <div class="row" id="plan-actions">
+            <button id="save-plan-btn" class="primary">💾 Guardar 01-PLAN.md</button>
+            <button id="template-plan-btn">📝 Plantilla rápida</button>
+          </div>
+          <div class="row" id="run-actions">
+            <button class="primary" data-action="loop">🚀 Piloto Automático (Loop)</button>
+            <button data-action="code">💻 Ejecutar Code</button>
+            <button data-action="qa">🔍 Auditar QA</button>
+            <button data-action="fix">🔧 Ejecutar Fix</button>
+          </div>
+        </div>
+      </details>
     </div>
   </section>
 
@@ -303,13 +346,17 @@
     attemptBadge($('handoff-badge'), st.handoffExists, '02-HANDOFF.md');
     $('iterate-badge').textContent = 'Iteración: ' + (s.files?.handoff?.match(/\*\*Iteración:\*\*\s+(\S+)/)?.[1] ?? st.iteration ?? '—');
 
-    // Columna 1 (no machacar el editor si el usuario está escribiendo)
+    // Columna 1: visor limpio por defecto; el editor vive en <details> (manual).
+    $('plan-viewer').textContent =
+      s.files.plan ?? '01-PLAN.md aún no existe. Ejecuta /plan o pega uno en los controles manuales.';
     const editor = $('plan-editor');
-    if (document.activeElement !== editor) {
+    if (document.activeElement !== editor && !$('manual-controls').open) {
       editor.value = s.files.plan ?? '';
     }
     renderRoadmapView(s.files.roadmap);
     applyPlannerTab();
+    updateLiveBanner(s.activeRun);
+    updateActiveColumn(s.activeRun);
     // Columna 2
     $('handoff-viewer').textContent = s.files.handoff ?? '02-HANDOFF.md aún no existe.';
     $('log-viewer').textContent = s.files.latestLog ?? 'Sin logs todavía.';
@@ -344,6 +391,27 @@
       badge.textContent = 'EN ESPERA';
       badge.className = 'badge';
     }
+  }
+  function updateLiveBanner(activeRun) {
+    const el = $('live-banner');
+    if (activeRun?.running) {
+      const stepName = activeRun.step || activeRun.action || 'loop';
+      el.textContent = `⚡ EJECUTANDO EN VIVO: Paso ${stepName} (Iteración ${activeRun.iteration ?? 1})`;
+      el.className = 'live-banner running';
+      return;
+    }
+    el.textContent = '🟢 En espera de pipeline-auto';
+    el.className = 'live-banner waiting';
+  }
+
+  /** Resalta la columna del agente activo (code/fix → Obrero, qa → Auditor). */
+  function updateActiveColumn(activeRun) {
+    $('col-coder').classList.remove('live');
+    $('col-qa').classList.remove('live');
+    if (!activeRun?.running) return;
+    const activeStep = activeRun.step || activeRun.action;
+    if (activeStep === 'code' || activeStep === 'fix') $('col-coder').classList.add('live');
+    else if (activeStep === 'qa') $('col-qa').classList.add('live');
   }
   function esc(t) { const d = document.createElement('span'); d.textContent = t ?? ''; return d.innerHTML; }
 
@@ -403,11 +471,10 @@
     container.innerHTML = html;
   }
 
-  /** Alterna entre el editor de 01-PLAN.md y el visor renderizado de ROADMAP.md. */
+  /** Alterna entre el visor de 01-PLAN.md y el visor renderizado de ROADMAP.md. */
   function applyPlannerTab() {
     const isPlan = activeTab === 'plan';
-    $('plan-editor').classList.toggle('hidden', !isPlan);
-    $('plan-actions').classList.toggle('hidden', !isPlan);
+    $('plan-viewer').classList.toggle('hidden', !isPlan);
     $('roadmap-view').classList.toggle('hidden', isPlan);
   }
   function renderDiff(diff) {
@@ -482,7 +549,7 @@
     await api('/api/settings', { method: 'POST', body: JSON.stringify({ autoWatchPlan: e.target.checked }) });
   });
 
-  document.querySelectorAll('.hdr-actions button').forEach((btn) => {
+  document.querySelectorAll('#run-actions button').forEach((btn) => {
     btn.addEventListener('click', async () => {
       const action = btn.dataset.action;
       const body = { dir: state.projectDir, action, wait: false };

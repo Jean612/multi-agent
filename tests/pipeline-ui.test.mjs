@@ -17,6 +17,7 @@ import {
   readPipelineFiles,
   discoverProjects,
 } from '../bin/pipeline-ui.mjs';
+import { runStep } from '../bin/pipeline-run.mjs';
 
 const execFile = promisify(execFileCallback);
 const CLI_PATH = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'bin', 'pipeline-ui.mjs');
@@ -125,10 +126,16 @@ test('GET / responde 200 OK con las 3 columnas de Mission Control', async () => 
     assert.match(body, /EventSource\('\/api\/events'\)/);
     assert.match(body, /qa-semaphore/);
     assert.match(body, /git-drawer/);
-    // TASK-01: responsividad (3 columnas en desktop, apilado < 1100px) y visor de roadmap.
+    // TASK-01: responsividad (3 columnas en desktop, apilado < 1100px / < 720px),
+    // modo monitor limpio (banner, visor y controles plegados) y visor de roadmap.
     assert.match(body, /grid-template-columns:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\)/);
-    assert.match(body, /@media\s*\(max-width:\s*1099px\)/);
+    assert.match(body, /@media\s*\(max-width:\s*1100px\)/);
+    assert.match(body, /@media\s*\(max-width:\s*720px\)/);
     assert.match(body, /grid-template-columns:\s*1fr/);
+    assert.match(body, /id="live-banner"/);
+    assert.match(body, /id="plan-viewer"/);
+    assert.match(body, /id="manual-controls"/);
+    assert.match(body, /\.column\.live/);
     assert.match(body, /id="roadmap-view"/);
     assert.match(body, /roadmap-card/);
     assert.match(body, /overflow-x:\s*hidden/);
@@ -350,6 +357,82 @@ test('GET /api/state devuelve el contenido de ROADMAP.md cuando existe (TASK-01)
     assert.match(body.files.roadmap, /TASK-01/);
   } finally {
     await controller.close();
+    await cleanupTemp(projectDir);
+  }
+});
+
+test('GET /api/state refleja runtime.json de una corrida CLI externa (TASK-01)', async () => {
+  const runtime = {
+    running: true,
+    action: 'loop',
+    step: 'code',
+    iteration: 2,
+    qaEngine: 'kimi',
+    updatedAt: '2026-10-24T05:00:00.000Z',
+  };
+  const projectDir = await makeProject({
+    '01-PLAN.md': '# Plan\n- **Tarea:** Runtime telemetry\n',
+    'runtime.json': JSON.stringify(runtime, null, 2),
+  });
+  const { controller, fetchJson } = await startServer({ defaultProjectDir: projectDir });
+  try {
+    const { status, body } = await fetchJson(`/api/state?dir=${encodeURIComponent(projectDir)}`);
+    assert.equal(status, 200);
+    // La corrida externa se refleja en activeRun sin tocar la memoria del servidor.
+    assert.equal(body.activeRun.running, true);
+    assert.equal(body.activeRun.step, 'code');
+    assert.equal(body.activeRun.iteration, 2);
+    assert.equal(body.activeRun.action, 'loop');
+    assert.equal(body.activeRun.projectDir, projectDir);
+    assert.equal(body.files.runtime.step, 'code');
+  } finally {
+    await controller.close();
+    await cleanupTemp(projectDir);
+  }
+});
+
+test('runtime.json inválido no rompe /api/state y activeRun sigue en reposo (TASK-01)', async () => {
+  const projectDir = await makeProject({
+    '01-PLAN.md': '# Plan\n- **Tarea:** Runtime inválido\n',
+    'runtime.json': '{ esto no es json',
+  });
+  const { controller, fetchJson } = await startServer({ defaultProjectDir: projectDir });
+  try {
+    const { status, body } = await fetchJson(`/api/state?dir=${encodeURIComponent(projectDir)}`);
+    assert.equal(status, 200);
+    assert.equal(body.files.runtime, null);
+    assert.equal(body.activeRun.running, false);
+  } finally {
+    await controller.close();
+    await cleanupTemp(projectDir);
+  }
+});
+
+test('runStep escribe runtime.json (running true durante el paso, false al terminar) y dryRun no escribe', async () => {
+  const projectDir = await makeProject();
+  const runtimePath = path.join(projectDir, '.pipeline', 'runtime.json');
+  try {
+    let during = null;
+    await runStep('code', {
+      projectDir,
+      runner: async () => {
+        during = JSON.parse(await fs.readFile(runtimePath, 'utf8'));
+        return { exitCode: 0 };
+      },
+    });
+    assert.equal(during.running, true);
+    assert.equal(during.step, 'code');
+    assert.equal(during.iteration, 1);
+    assert.ok(typeof during.updatedAt === 'string' && during.updatedAt.length > 0);
+    const after = JSON.parse(await fs.readFile(runtimePath, 'utf8'));
+    assert.equal(after.running, false);
+    assert.equal(after.step, 'code');
+
+    // dryRun no debe ensuciar el proyecto con telemetría en disco.
+    await fs.rm(runtimePath, { force: true });
+    await runStep('qa', { projectDir, dryRun: true });
+    await assert.rejects(fs.access(runtimePath));
+  } finally {
     await cleanupTemp(projectDir);
   }
 });
