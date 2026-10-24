@@ -12,7 +12,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFile } from 'node:child_process';
 import { analyzePipeline } from './pipeline-status.mjs';
-import { runStep, runPipelineLoop, resolveBins } from './pipeline-run.mjs';
+import { runStep, runPipelineLoop, resolveBins, isValidAgent } from './pipeline-run.mjs';
 
 const VALID_ACTIONS = new Set(['code', 'fix', 'qa', 'loop']);
 const WATCHED_FILES = new Set(['01-PLAN.md', '02-HANDOFF.md', '03-QA-REPORT.md', 'ROADMAP.md', 'runtime.json']);
@@ -218,12 +218,13 @@ function readJsonBody(req, maxBytes = 1024 * 1024) {
 
 /**
  * Crea el servidor HTTP + SSE + watcher de "Mission Control".
- * @param {{defaultProjectDir?: string, runner?: Function, qaEngine?: 'kimi'|'opencode', qaModel?: string}} options
+ * @param {{defaultProjectDir?: string, runner?: Function, coder?: string, qaEngine?: string, qaModel?: string}} options
  * @returns {{server: http.Server, broadcast: Function, getSettings: Function, getState: Function, listen: Function, close: Function}}
  */
 export function createMissionControlServer(options = {}) {
   const settings = {
     defaultProjectDir: options.defaultProjectDir || process.cwd(),
+    coder: options.coder || 'opencode',
     qaEngine: options.qaEngine || 'kimi',
     qaModel: options.qaModel || null,
     autoWatchPlan: false,
@@ -383,13 +384,13 @@ export function createMissionControlServer(options = {}) {
       git,
       activeRun: effectiveActiveRun,
       autoWatchPlan: settings.autoWatchPlan,
-      bins: resolveBins({ qaEngine: settings.qaEngine, qaModel: settings.qaModel }),
+      bins: resolveBins({ coder: settings.coder, qaEngine: settings.qaEngine, qaModel: settings.qaModel }),
     };
   }
 
   /**
    * Ejecuta una acción del pipeline (code/fix/qa/loop) con eventos SSE.
-   * @param {{dir?: string, action: string, maxRetries?: number, qaEngine?: string, qaModel?: string, dryRun?: boolean}} bodyParams
+   * @param {{dir?: string, action: string, maxRetries?: number, coder?: string, qaEngine?: string, qaModel?: string, dryRun?: boolean}} bodyParams
    */
   async function triggerRun(bodyParams) {
     // Defensa en profundidad: una segunda invocación concurrente (p. ej. Auto-Trigger
@@ -424,6 +425,7 @@ export function createMissionControlServer(options = {}) {
           maxRetries: bodyParams.maxRetries ?? 3,
           runner: injectedRunner,
           dryRun: bodyParams.dryRun === true,
+          coder: bodyParams.coder ?? settings.coder,
           qaEngine: bodyParams.qaEngine ?? settings.qaEngine,
           qaModel: bodyParams.qaModel ?? settings.qaModel,
           onEvent,
@@ -433,6 +435,7 @@ export function createMissionControlServer(options = {}) {
           projectDir,
           runner: injectedRunner,
           dryRun: bodyParams.dryRun === true,
+          coder: bodyParams.coder ?? settings.coder,
           qaEngine: bodyParams.qaEngine ?? settings.qaEngine,
           qaModel: bodyParams.qaModel ?? settings.qaModel,
         });
@@ -544,12 +547,14 @@ export function createMissionControlServer(options = {}) {
         if (typeof body.defaultProjectDir === 'string' && body.defaultProjectDir) {
           settings.defaultProjectDir = path.resolve(body.defaultProjectDir);
         }
-        if (body.qaEngine === 'kimi' || body.qaEngine === 'opencode') settings.qaEngine = body.qaEngine;
+        if (isValidAgent(body.coder)) settings.coder = body.coder;
+        if (isValidAgent(body.qaEngine)) settings.qaEngine = body.qaEngine;
         if (typeof body.qaModel === 'string') settings.qaModel = body.qaModel || null;
         broadcast({
           type: 'settings_updated',
           autoWatchPlan: settings.autoWatchPlan,
           defaultProjectDir: settings.defaultProjectDir,
+          coder: settings.coder,
           qaEngine: settings.qaEngine,
           qaModel: settings.qaModel,
         });
@@ -559,6 +564,7 @@ export function createMissionControlServer(options = {}) {
             ok: true,
             autoWatchPlan: settings.autoWatchPlan,
             defaultProjectDir: settings.defaultProjectDir,
+            coder: settings.coder,
             qaEngine: settings.qaEngine,
             qaModel: settings.qaModel,
           })

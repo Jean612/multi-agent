@@ -760,3 +760,31 @@ test('la UI conecta setScene, compacta las tarjetas y el módulo respeta reduced
     await controller.close();
   }
 });
+
+test('POST /api/settings acepta coder y QA de cualquier agente válido e ignora los inválidos', async () => {
+  const { controller, fetchJson } = await startServer({ defaultProjectDir: '.' });
+  try {
+    const post = (body) => fetchJson('/api/settings', { method: 'POST', body: JSON.stringify(body) });
+    const ok = await post({ coder: 'claude', qaEngine: 'gemini' });
+    assert.equal(ok.status, 200);
+    assert.equal(ok.body.coder, 'claude');
+    assert.equal(ok.body.qaEngine, 'gemini');
+
+    const ignored = await post({ coder: 'copilot', qaEngine: 'nope' });
+    assert.equal(ignored.body.coder, 'claude');
+    assert.equal(ignored.body.qaEngine, 'gemini');
+
+    const { body } = await fetchJson('/api/state');
+    assert.equal(body.bins.coder, 'claude');
+    assert.equal(body.bins.qaEngine, 'gemini');
+    assert.equal(body.bins.qaFallback, 'claude');
+
+    const html = (await fetchJson('/')).body;
+    assert.match(html, /id="coder-select"/);
+    for (const agent of ['opencode', 'kimi', 'claude', 'gemini']) {
+      assert.match(html, new RegExp(`<option value="${agent}">`));
+    }
+  } finally {
+    await controller.close();
+  }
+});

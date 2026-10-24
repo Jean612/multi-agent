@@ -298,10 +298,21 @@
     <button id="load-dir-btn" title="Cargar ruta manual">↩︎</button>
   </div>
   <div class="hdr-field">
+    <label>Coder</label>
+    <select id="coder-select">
+      <option value="opencode">opencode</option>
+      <option value="kimi">kimi</option>
+      <option value="claude">claude</option>
+      <option value="gemini">gemini</option>
+    </select>
+  </div>
+  <div class="hdr-field">
     <label>Motor QA</label>
     <select id="qa-engine-select">
-      <option value="kimi">kimi (Kimi Code + Fallback Auto DeepSeek)</option>
+      <option value="kimi">kimi (Kimi Code + fallback al coder)</option>
       <option value="opencode">opencode (DeepSeek Free directo)</option>
+      <option value="claude">claude</option>
+      <option value="gemini">gemini</option>
     </select>
   </div>
   <div class="hdr-field">
@@ -487,7 +498,10 @@
     const qaText = s.files.qaReport ?? '03-QA-REPORT.md aún no existe.';
     $('qa-report-viewer').textContent = qaText;
     updateSemaphore(st.qaStatus, s.activeRun);
-    $('engine-note').textContent = `Motor QA: ${s.bins?.qaEngine ?? 'kimi'} · Modelo fallback: ${s.bins?.qaModel ?? '—'}`;
+    $('engine-note').textContent =
+      `Coder: ${s.bins?.coder ?? 'opencode'} · Motor QA: ${s.bins?.qaEngine ?? 'kimi'} · Fallback QA: ${s.bins?.qaFallback ?? 'ninguno'}`;
+    if (s.bins?.coder) $('coder-select').value = s.bins.coder;
+    if (s.bins?.qaEngine) $('qa-engine-select').value = s.bins.qaEngine;
     // Git drawer
     $('git-meta').textContent =
       (s.git?.isRepo ? `Rama: ${s.git.branch ?? '(desconocida)'} · Archivos modificados:\n${s.git.statusShort || '(sin cambios)'}` : 'No es un repositorio git.');
@@ -803,6 +817,10 @@
 `;
   });
 
+  $('coder-select').addEventListener('change', async (e) => {
+    await api('/api/settings', { method: 'POST', body: JSON.stringify({ coder: e.target.value }) });
+    await refreshState();
+  });
   $('qa-engine-select').addEventListener('change', async (e) => {
     await api('/api/settings', { method: 'POST', body: JSON.stringify({ qaEngine: e.target.value }) });
     await refreshState();

@@ -44,9 +44,18 @@ También soporta flags no interactivos:
 ### Opción B: Orquestador 100% Automático (`pipeline-auto` / `/auto` / `pipeline-run`)
 Hablas únicamente con el Cerebro (Antigravity usando la skill `pipeline-auto`, o Claude Code usando el comando `/auto`), o ejecutas directo por CLI:
 ```bash
-pipeline-run loop . --max-retries 3
+pipeline-run loop . --max-retries 3 --coder opencode --qa kimi
 ```
-*(Si Kimi Code agota su cuota, `pipeline-run` activa automáticamente el fallback de QA con OpenCode `deepseek-v4.1-flash-free`)*.
+`/auto` te pregunta qué agente usar como **coder** (`code`/`fix`) y cuál como **QA**, antes de lanzar el loop. Puede ser `opencode`, `kimi`, `claude` o `gemini`, y por defecto se usan OpenCode + Kimi. Sirve, por ejemplo, para seguir trabajando cuando un agente agotó su cuota (`--coder kimi` o `--coder claude`).
+
+| Flag | Qué hace |
+|---|---|
+| `--coder <agente>` | Agente para `code` y `fix` (default `opencode`, o `CODER_AGENT`). |
+| `--qa <agente>` | Agente de auditoría (default `kimi`, o `QA_ENGINE`; alias `--qa-engine`). |
+| `--qa-fallback <agente\|none>` | Reintento si el QA falla. Por defecto es el coder, si es distinto del QA. |
+| `--coder-model <m>` / `--qa-model <m>` | Modelo opcional. `--qa-model` solo aplica a OpenCode como QA (default `deepseek-v4.1-flash-free`). |
+
+Todos los agentes corren en modo autónomo (`--auto`, `bypassPermissions` o `yolo`, según el CLI). Los binarios se resuelven con `OPENCODE_BIN`, `KIMI_BIN`, `CLAUDE_BIN` y `GEMINI_BIN`, o desde el PATH.
 
 ### Opción C: Mission Control GUI + Oficina Virtual "Pixel Agents" (`pipeline-ui`)
 Levanta el monitor web en tiempo real (Server-Sent Events + File Watcher sobre `.pipeline/runtime.json`) con vista de 3 columnas y oficina animada estilo **Pixel Agents**:

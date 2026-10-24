@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 import { execFile as execFileCallback } from 'node:child_process';
 import { promisify } from 'node:util';
 import { analyzePipeline } from '../bin/pipeline-status.mjs';
-import { buildStepCommand, isQuotaFailure, runPipelineLoop, runStep } from '../bin/pipeline-run.mjs';
+import { AGENTS, buildStepCommand, isQuotaFailure, resolveBins, runPipelineLoop, runStep } from '../bin/pipeline-run.mjs';
 
 const execFile = promisify(execFileCallback);
 
@@ -321,6 +321,174 @@ test('runPipelineLoop: fix con exit != 0 devuelve STALLED sin re-auditar', async
     assert.equal(result.status, 'STALLED');
     assert.match(result.reason, /fix falló \(exit 2\)/);
     assert.deepEqual(calls, ['code', 'qa', 'fix']);
+  } finally {
+    await cleanup(projectDir);
+  }
+});
+
+// ------------------------------------------------------------------------------
+// Selección de agentes por rol (--coder / --qa / --qa-fallback)
+// ------------------------------------------------------------------------------
+
+/** Binarios ficticios para que los tests no dependan del PATH ni del entorno. */
+const FAKE_BINS = {
+  opencodeBin: '/bin/opencode',
+  kimiBin: '/bin/kimi',
+  claudeBin: '/bin/claude',
+  geminiBin: '/bin/gemini',
+};
+
+test('buildStepCommand usa el coder elegido en code y fix (kimi, claude, gemini)', () => {
+  assert.deepEqual(AGENTS, ['opencode', 'kimi', 'claude', 'gemini']);
+
+  const kimi = buildStepCommand('code', { ...FAKE_BINS, coder: 'kimi' });
+  assert.equal(kimi.command, '/bin/kimi');
+  assert.equal(kimi.agent, 'kimi');
+  assert.deepEqual([kimi.args[0], kimi.args[1], kimi.args.at(-1)], ['--auto', '-p', '-c']);
+  assert.match(kimi.args[2], /skill pipeline-code:/);
+
+  const claude = buildStepCommand('fix', { ...FAKE_BINS, coder: 'claude', coderModel: 'sonnet' });
+  assert.equal(claude.command, '/bin/claude');
+  assert.equal(claude.args[0], '-p');
+  assert.match(claude.args[1], /pipeline-code en modo corrección/);
+  assert.deepEqual(claude.args.slice(2), ['--permission-mode', 'bypassPermissions', '--model', 'sonnet']);
+  assert.ok(!claude.args.includes('-c'), 'claude no debe continuar la sesión del orquestador');
+
+  const gemini = buildStepCommand('code', { ...FAKE_BINS, coder: 'gemini' });
+  assert.equal(gemini.command, '/bin/gemini');
+  assert.deepEqual(gemini.args.slice(0, 3), ['--skip-trust', '--approval-mode', 'yolo']);
+  assert.deepEqual(gemini.args.slice(-2, -1), ['-p']);
+
+  assert.throws(() => buildStepCommand('code', { ...FAKE_BINS, coder: 'copilot' }), /Agente desconocido/);
+});
+
+test('buildStepCommand usa el QA elegido; qaModel solo aplica a OpenCode', () => {
+  const claude = buildStepCommand('qa', { ...FAKE_BINS, qaEngine: 'claude', qaModel: 'opencode/deepseek-v4.1-flash-free' });
+  assert.equal(claude.command, '/bin/claude');
+  assert.match(claude.args[1], /skill qa:/);
+  assert.ok(!claude.args.includes('--model'), 'el modelo de OpenCode no se pasa a Claude');
+
+  const gemini = buildStepCommand('qa', { ...FAKE_BINS, qaEngine: 'gemini' });
+  assert.equal(gemini.command, '/bin/gemini');
+  assert.match(gemini.args.at(-1), /skill qa:/);
+
+  const kimi = buildStepCommand('qa', { ...FAKE_BINS, qaEngine: 'kimi', qaModel: 'x/y' });
+  assert.deepEqual([kimi.args[0], kimi.args[2]], ['-p', '-c'], 'Kimi como QA conserva su invocación histórica');
+});
+
+test('resolveBins: el fallback de QA es el coder salvo que coincida con el QA o sea none', () => {
+  const env = { CODER_AGENT: process.env.CODER_AGENT, QA_ENGINE: process.env.QA_ENGINE, QA_FALLBACK: process.env.QA_FALLBACK };
+  delete process.env.CODER_AGENT;
+  delete process.env.QA_ENGINE;
+  delete process.env.QA_FALLBACK;
+  try {
+    const defaults = resolveBins();
+    assert.deepEqual([defaults.coder, defaults.qaEngine, defaults.qaFallback], ['opencode', 'kimi', 'opencode']);
+    assert.equal(resolveBins({ coder: 'claude', qaEngine: 'kimi' }).qaFallback, 'claude');
+    assert.equal(resolveBins({ coder: 'kimi', qaEngine: 'kimi' }).qaFallback, null);
+    assert.equal(resolveBins({ coder: 'claude', qaEngine: 'kimi', qaFallback: 'none' }).qaFallback, null);
+    assert.equal(resolveBins({ coder: 'kimi', qaEngine: 'kimi', qaFallback: 'gemini' }).qaFallback, 'gemini');
+    assert.equal(resolveBins({ qaEngine: 'gemini', qaFallback: 'gemini' }).qaFallback, null, 'el fallback no puede ser el mismo QA');
+
+    process.env.CODER_AGENT = 'gemini';
+    process.env.QA_ENGINE = 'claude';
+    const fromEnv = resolveBins();
+    assert.deepEqual([fromEnv.coder, fromEnv.qaEngine, fromEnv.qaFallback], ['gemini', 'claude', 'gemini']);
+  } finally {
+    for (const [key, value] of Object.entries(env)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
+});
+
+test('runStep: el fallback de QA usa el coder elegido (Kimi agotado → Claude)', async () => {
+  const projectDir = await makeProject();
+  try {
+    const invocations = [];
+    const runner = async ({ agent, command }) => {
+      invocations.push({ agent, command });
+      return agent === 'kimi' ? { exitCode: 1, quotaError: true } : { exitCode: 0 };
+    };
+    const result = await runStep('qa', { projectDir, runner, ...FAKE_BINS, coder: 'claude', qaEngine: 'kimi' });
+    assert.deepEqual(invocations.map((i) => i.agent), ['kimi', 'claude']);
+    assert.equal(result.fallbackFrom, 'kimi');
+    assert.equal(result.qaEngine, 'claude');
+    assert.equal(result.agent, 'claude');
+    assert.equal(result.exitCode, 0);
+
+    // Sin fallback (coder === QA): un solo intento que falla.
+    invocations.length = 0;
+    const noFallback = await runStep('qa', { projectDir, runner, ...FAKE_BINS, coder: 'kimi', qaEngine: 'kimi' });
+    assert.deepEqual(invocations.map((i) => i.agent), ['kimi']);
+    assert.equal(noFallback.exitCode, 1);
+    assert.equal(noFallback.fallbackFrom, undefined);
+  } finally {
+    await cleanup(projectDir);
+  }
+});
+
+test('runPipelineLoop corre cada paso con el agente de su rol y lo registra en el historial y runtime.json', async () => {
+  const projectDir = await makeProject({ '01-PLAN.md': '# Plan\n- **Tarea:** Agentes\n' });
+  try {
+    const seen = [];
+    const result = await runPipelineLoop({
+      projectDir,
+      coder: 'kimi',
+      qaEngine: 'claude',
+      runner: async ({ step, agent }) => {
+        seen.push(`${step}:${agent}`);
+        const runtime = JSON.parse(await fs.readFile(path.join(projectDir, '.pipeline', 'runtime.json'), 'utf8'));
+        assert.equal(runtime.coder, 'kimi');
+        assert.equal(runtime.qaEngine, 'claude');
+        if (step === 'code') await writePipelineFile(projectDir, '02-HANDOFF.md', '# Handoff\n');
+        if (step === 'qa') await writePipelineFile(projectDir, '03-QA-REPORT.md', '# QA\nSTATUS: APPROVED\n');
+        return { exitCode: 0 };
+      },
+    });
+    assert.equal(result.status, 'APPROVED');
+    assert.deepEqual(seen, ['code:kimi', 'qa:claude']);
+    assert.deepEqual(result.history.map((h) => h.agent), ['kimi', 'claude']);
+  } finally {
+    await cleanup(projectDir);
+  }
+});
+
+test('runPipelineLoop con un agente desconocido devuelve STALLED sin correr pasos', async () => {
+  const projectDir = await makeProject({ '01-PLAN.md': '# Plan\n' });
+  try {
+    let calls = 0;
+    const result = await runPipelineLoop({
+      projectDir,
+      coder: 'copilot',
+      runner: async () => {
+        calls++;
+        return { exitCode: 0 };
+      },
+    });
+    assert.equal(result.status, 'STALLED');
+    assert.match(result.reason, /Agente desconocido: 'copilot'/);
+    assert.equal(calls, 0);
+  } finally {
+    await cleanup(projectDir);
+  }
+});
+
+test('CLI: --coder/--qa válidos se reflejan en el dry-run y uno inválido sale con exit 1', async () => {
+  const projectDir = await makeProject({ '01-PLAN.md': '# Plan\n' });
+  try {
+    const { stdout } = await execFile(process.execPath, [
+      CLI_PATH, 'code', projectDir, '--dry-run', '--json', '--coder', 'gemini', '--qa=claude',
+    ]);
+    const parsed = JSON.parse(stdout);
+    assert.equal(parsed.agent, 'gemini');
+    assert.equal(parsed.coder, 'gemini');
+    assert.equal(parsed.qaEngine, 'claude');
+
+    await assert.rejects(
+      execFile(process.execPath, [CLI_PATH, 'loop', projectDir, '--coder', 'copilot']),
+      (error) => error.code === 1 && /--coder 'copilot' no es válido/.test(error.stderr)
+    );
   } finally {
     await cleanup(projectDir);
   }
