@@ -51,7 +51,7 @@
   button:disabled { opacity: .45; cursor: not-allowed; }
   /* ---------- 3 columnas ---------- */
   .mission-grid {
-    flex: 1; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;
+    flex: 1; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px;
     padding: 10px; min-height: 0;
   }
   .column {
@@ -131,9 +131,61 @@
   .event-log div { padding: 1px 0; }
   .event-log b { color: var(--accent); font-weight: normal; }
   .hidden { display: none !important; }
-  @media (max-width: 900px) {
-    .mission-grid { grid-template-columns: 1fr; overflow: auto; }
-    body { overflow: auto; }
+  /* ---------- Visor renderizado de ROADMAP.md ---------- */
+  #roadmap-view {
+    flex: 1; min-height: 120px; overflow: auto;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .roadmap-empty {
+    color: var(--muted); font-size: 12px; line-height: 1.6; padding: 14px;
+    border: 1px dashed var(--border); border-radius: 8px;
+  }
+  .roadmap-heading { font-size: 13px; color: var(--accent); letter-spacing: .5px; margin: 4px 0; }
+  .roadmap-section {
+    font-size: 11px; color: var(--muted); text-transform: uppercase;
+    letter-spacing: .8px; margin: 8px 0 2px;
+  }
+  .roadmap-card {
+    background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px;
+    padding: 10px 12px; display: flex; flex-direction: column; gap: 6px;
+  }
+  .roadmap-card.done { border-color: var(--green); }
+  .roadmap-card h3 {
+    font-size: 12.5px; margin: 0; color: var(--text);
+    display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap;
+  }
+  .roadmap-card .task-id { color: var(--accent); }
+  .roadmap-card .task-status {
+    margin-left: auto; font-size: 9.5px; padding: 1px 6px; border-radius: 999px;
+    border: 1px solid var(--border); color: var(--muted); letter-spacing: .5px;
+  }
+  .roadmap-card.done .task-status { color: var(--green); border-color: var(--green); }
+  .rm-row { display: flex; gap: 6px; font-size: 11.5px; line-height: 1.5; color: var(--text); }
+  .rm-check {
+    flex: 0 0 auto; width: 14px; height: 14px; margin-top: 1px;
+    border: 1px solid var(--border); border-radius: 3px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px; color: transparent;
+  }
+  .rm-row.checked .rm-check { background: var(--green); border-color: var(--green); color: #04170d; }
+  .rm-row.checked span:last-child { color: var(--muted); text-decoration: line-through; }
+  .rm-key { color: var(--muted); }
+  .rm-meta { font-size: 11px; color: var(--muted); line-height: 1.5; }
+  /* ---------- Responsivo ---------- */
+  html, body { max-width: 100%; }
+  header { gap: 10px; }
+  .hdr-field { flex-wrap: wrap; }
+  @media (max-width: 1099px) {
+    body { height: auto; min-height: 100vh; overflow-y: auto; overflow-x: hidden; }
+    .mission-grid { grid-template-columns: 1fr; height: auto; overflow: visible; }
+    .column { max-height: none; }
+    .column .body { overflow: visible; }
+    .hdr-field { width: 100%; }
+    .hdr-field select { flex: 1; min-width: 0; }
+    input#manual-dir { width: 100%; max-width: 100%; }
+    .hdr-actions { margin-left: 0; width: 100%; flex-wrap: wrap; }
+    textarea { min-height: 180px; }
+    #git-diff { max-height: 40vh; }
   }
 </style>
 </head>
@@ -174,8 +226,9 @@
         <div class="tab active" data-tab="plan">01-PLAN.md</div>
         <div class="tab" data-tab="roadmap">ROADMAP.md</div>
       </div>
-      <textarea id="plan-editor" spellcheck="false" placeholder="Aquí se carga el contenido de .pipeline/01-PLAN.md (o ROADMAP.md)..."></textarea>
-      <div class="row">
+      <textarea id="plan-editor" spellcheck="false" placeholder="Aquí se carga el contenido de .pipeline/01-PLAN.md..."></textarea>
+      <div id="roadmap-view" class="hidden"></div>
+      <div class="row" id="plan-actions">
         <button id="save-plan-btn" class="primary">💾 Guardar 01-PLAN.md</button>
         <button id="template-plan-btn">📝 Plantilla rápida</button>
       </div>
@@ -253,13 +306,15 @@
     // Columna 1 (no machacar el editor si el usuario está escribiendo)
     const editor = $('plan-editor');
     if (document.activeElement !== editor) {
-      editor.value = activeTab === 'plan' ? (s.files.plan ?? '') : (s.files.roadmap ?? '');
+      editor.value = s.files.plan ?? '';
     }
+    renderRoadmapView(s.files.roadmap);
+    applyPlannerTab();
     // Columna 2
     $('handoff-viewer').textContent = s.files.handoff ?? '02-HANDOFF.md aún no existe.';
     $('log-viewer').textContent = s.files.latestLog ?? 'Sin logs todavía.';
     // Columna 3
-    const qaText = s.files.qaReport ?? '3-QA-REPORT.md aún no existe.';
+    const qaText = s.files.qaReport ?? '03-QA-REPORT.md aún no existe.';
     $('qa-report-viewer').textContent = qaText;
     updateSemaphore(st.qaStatus, s.activeRun);
     $('engine-note').textContent = `Motor QA: ${s.bins?.qaEngine ?? 'kimi'} · Modelo fallback: ${s.bins?.qaModel ?? '—'}`;
@@ -291,6 +346,70 @@
     }
   }
   function esc(t) { const d = document.createElement('span'); d.textContent = t ?? ''; return d.innerHTML; }
+
+  // ---------- ROADMAP.md renderizado ----------
+  function renderRoadmapView(markdown) {
+    const container = $('roadmap-view');
+    if (!markdown || !markdown.trim()) {
+      container.innerHTML =
+        '<div class="roadmap-empty">No hay <b>.pipeline/ROADMAP.md</b> todavía.<br>' +
+        'Genera una épica con la skill <b>pipeline-epic</b> (/epic) y aquí verás el backlog de tareas con su progreso.</div>';
+      return;
+    }
+    const lines = markdown.split('\n');
+    let html = '';
+    let inCard = false;
+    const closeCard = () => {
+      if (inCard) {
+        html += '</div>';
+        inCard = false;
+      }
+    };
+    for (const raw of lines) {
+      const line = raw.trim();
+      const taskMatch = line.match(/^###\s+\[([ xX])\]\s+(TASK-\d+)[:\s-]*(.*)$/);
+      if (taskMatch) {
+        closeCard();
+        const done = taskMatch[1].toLowerCase() === 'x';
+        html += `<div class="roadmap-card${done ? ' done' : ''}">`;
+        html += `<h3><span class="task-id">${esc(taskMatch[2])}</span><span>${esc(taskMatch[3])}</span>` +
+          `<span class="task-status">${done ? 'DONE' : 'PENDING'}</span></h3>`;
+        inCard = true;
+        continue;
+      }
+      if (/^#{1,3}\s+/.test(line)) {
+        closeCard();
+        const text = line.replace(/^#+\s+/, '');
+        const cls = line.startsWith('## ') ? 'roadmap-section' : 'roadmap-heading';
+        html += `<div class="${cls}">${esc(text)}</div>`;
+        continue;
+      }
+      const check = line.match(/^-\s+\[([ xX])\]\s+(.*)$/);
+      if (check) {
+        const checked = check[1].toLowerCase() === 'x';
+        html += `<div class="rm-row${checked ? ' checked' : ''}"><span class="rm-check">✓</span>` +
+          `<span>${esc(check[2])}</span></div>`;
+        continue;
+      }
+      const kv = line.match(/^-\s+\*\*(.+?):\*\*\s*(.+)$/);
+      if (kv) {
+        html += `<div class="rm-meta"><span class="rm-key">${esc(kv[1])}:</span> ${esc(kv[2])}</div>`;
+        continue;
+      }
+      if (!line) continue;
+      html += `<div class="rm-meta">${esc(line)}</div>`;
+    }
+    closeCard();
+    container.innerHTML = html;
+  }
+
+  /** Alterna entre el editor de 01-PLAN.md y el visor renderizado de ROADMAP.md. */
+  function applyPlannerTab() {
+    const isPlan = activeTab === 'plan';
+    $('plan-editor').classList.toggle('hidden', !isPlan);
+    $('plan-actions').classList.toggle('hidden', !isPlan);
+    $('roadmap-view').classList.toggle('hidden', isPlan);
+  }
   function renderDiff(diff) {
     if (!diff) return '<div class="diff-meta">(sin cambios en el diff)</div>';
     return diff.split('\n').map((line) => {
@@ -311,6 +430,7 @@
       tab.classList.add('active');
       if (scope.id === 'col-planner') {
         activeTab = tab.dataset.tab;
+        applyPlannerTab();
       }
       if (scope.id === 'col-coder') {
         const isLogs = tab.dataset.tab === 'logs';
@@ -323,9 +443,7 @@
 
   $('save-plan-btn').addEventListener('click', async () => {
     const content = $('plan-editor').value;
-    const body = activeTab === 'plan'
-      ? { dir: state.projectDir, content }
-      : { dir: state.projectDir, content, target: 'ROADMAP.md' };
+    const body = { dir: state.projectDir, content };
     const resp = await api('/api/plan', { method: 'POST', body: JSON.stringify(body) });
     if (!resp.ok) alert('Error guardando el plan: ' + (resp.error || ''));
     await refreshState();

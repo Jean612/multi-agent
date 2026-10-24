@@ -125,6 +125,13 @@ test('GET / responde 200 OK con las 3 columnas de Mission Control', async () => 
     assert.match(body, /EventSource\('\/api\/events'\)/);
     assert.match(body, /qa-semaphore/);
     assert.match(body, /git-drawer/);
+    // TASK-01: responsividad (3 columnas en desktop, apilado < 1100px) y visor de roadmap.
+    assert.match(body, /grid-template-columns:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\)/);
+    assert.match(body, /@media\s*\(max-width:\s*1099px\)/);
+    assert.match(body, /grid-template-columns:\s*1fr/);
+    assert.match(body, /id="roadmap-view"/);
+    assert.match(body, /roadmap-card/);
+    assert.match(body, /overflow-x:\s*hidden/);
   } finally {
     await controller.close();
   }
@@ -318,6 +325,31 @@ test('helpers: getGitInfo tolera no-repos, readPipelineFiles y discoverProjects'
     const none = await discoverProjects('/tmp/no-existe-mission-control-xyz');
     assert.deepEqual(none, []);
   } finally {
+    await cleanupTemp(projectDir);
+  }
+});
+
+test('GET /api/state devuelve el contenido de ROADMAP.md cuando existe (TASK-01)', async () => {
+  const roadmapContent = [
+    '# Roadmap de Épica',
+    '- **Estado General:** IN_PROGRESS',
+    '',
+    '### [ ] TASK-01: Responsividad',
+    '- **Objetivo:** Adaptar la GUI',
+    '- [ ] Criterio pendiente',
+  ].join('\n');
+  const projectDir = await makeProject({
+    '01-PLAN.md': '# Plan\n- **Tarea:** Roadmap state\n',
+    'ROADMAP.md': roadmapContent,
+  });
+  const { controller, fetchJson } = await startServer({ defaultProjectDir: projectDir });
+  try {
+    const { status, body } = await fetchJson(`/api/state?dir=${encodeURIComponent(projectDir)}`);
+    assert.equal(status, 200);
+    assert.equal(body.files.roadmap, roadmapContent);
+    assert.match(body.files.roadmap, /TASK-01/);
+  } finally {
+    await controller.close();
     await cleanupTemp(projectDir);
   }
 });
