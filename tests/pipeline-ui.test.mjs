@@ -620,3 +620,105 @@ test('buildOfficeMap y computeScale son puros e importables en Node', async () =
   assert.equal(office.computeScale(NaN, 100), 1);
   assert.equal(office.computeScale(-5, 0), 1);
 });
+
+test('poseFor cubre los 7 estados de escena con la tabla del plan (Pixel Office v3 TASK-02)', async () => {
+  const office = await import('../ui/office.js');
+  assert.deepEqual(office.SCENE_STATES, ['idle', 'planning', 'code', 'fix', 'qa', 'approved', 'changes_required']);
+
+  const expected = {
+    idle:             { planner: 'idle',   coder: 'idle',   qa: 'idle'    },
+    planning:         { planner: 'typing', coder: 'idle',   qa: 'idle'    },
+    code:             { planner: 'idle',   coder: 'typing', qa: 'idle'    },
+    fix:              { planner: 'idle',   coder: 'typing', qa: 'idle'    },
+    qa:               { planner: 'idle',   coder: 'idle',   qa: 'inspect' },
+    approved:         { planner: 'jump',   coder: 'jump',   qa: 'jump'    },
+    changes_required: { planner: 'idle',   coder: 'idle',   qa: 'alert'   },
+  };
+  for (const state of office.SCENE_STATES) {
+    for (const id of office.DESK_IDS) {
+      assert.equal(office.poseFor(state, id), expected[state][id], `poseFor(${state}, ${id})`);
+    }
+  }
+  assert.equal(office.poseFor('desconocido', 'planner'), 'idle');
+  assert.equal(office.poseFor('qa', 'fantasma'), 'idle');
+});
+
+test('buildAgentSprite genera sprites 16×24 válidos para todas las poses y frames', async () => {
+  const office = await import('../ui/office.js');
+  const validChars = new Set('.HSBDPKLG');
+
+  for (const pose of Object.keys(office.POSES)) {
+    const def = office.POSES[pose];
+    for (let frame = 0; frame < def.frames; frame++) {
+      const { rows, dy } = office.buildAgentSprite(pose, frame);
+      assert.equal(rows.length, 24, `${pose}[${frame}] debe tener 24 filas`);
+      for (const row of rows) {
+        assert.equal(row.length, 16, `${pose}[${frame}] fila debe medir 16: "${row}"`);
+        for (const ch of row) {
+          assert.ok(validChars.has(ch), `${pose}[${frame}] carácter inválido: "${ch}"`);
+        }
+      }
+      assert.equal(dy, def.dy[frame], `${pose}[${frame}] dy`);
+    }
+  }
+
+  for (const id of office.DESK_IDS) {
+    for (const ch of 'HSBDPKLG') {
+      assert.ok(office.AGENT_PALETTES[id][ch], `AGENT_PALETTES.${id} debe definir "${ch}"`);
+    }
+  }
+
+  const typing0 = office.buildAgentSprite('typing', 0);
+  const typing1 = office.buildAgentSprite('typing', 1);
+  assert.notDeepEqual(typing0.rows, typing1.rows, 'typing alterna manos entre frames');
+
+  const inspectFrames = [0, 1, 2, 3].map((f) => office.buildAgentSprite('inspect', f));
+  assert.ok(inspectFrames.some((s) => s.rows.some((r) => r.includes('G'))), 'inspect dibuja el vidrio de la lupa');
+
+  assert.equal(office.buildAgentSprite('alert', 0).dx, -1);
+  assert.equal(office.buildAgentSprite('alert', 1).dx, 1);
+
+  assert.deepEqual([0, 1, 2, 3].map((f) => office.buildAgentSprite('jump', f).dy), [0, -3, -5, -3]);
+
+  const idle = office.buildAgentSprite('idle', 0);
+  const invalid = office.buildAgentSprite('no-existe', 0);
+  assert.deepEqual(invalid, idle, 'una pose inválida devuelve lo mismo que idle');
+});
+
+test('frameIndexAt cicla frames y respeta reduced-motion', async () => {
+  const office = await import('../ui/office.js');
+  assert.equal(office.frameIndexAt('typing', 0), 0);
+  assert.equal(office.frameIndexAt('typing', 120), 1);
+  assert.equal(office.frameIndexAt('typing', 240), 0);
+  assert.equal(office.frameIndexAt('jump', 360), 3);
+  assert.equal(office.frameIndexAt('jump', 360, true), 0);
+  assert.equal(office.frameIndexAt('nope', 500), 0);
+  assert.equal(office.frameIndexAt('idle', NaN), 0);
+  assert.deepEqual(office.agentAnchor({ col: 3, row: 5 }), { x: 56, y: 81 });
+});
+
+test('la UI conecta setScene, compacta las tarjetas y el módulo respeta reduced-motion/visibilidad', async () => {
+  const { controller, port, fetchJson } = await startServer({ defaultProjectDir: '.' });
+  try {
+    const { status, body } = await fetchJson('/');
+    assert.equal(status, 200);
+    assert.match(body, /function applyPixelOfficeState/);
+    assert.match(body, /function updatePixelOffice/);
+    assert.match(body, /window\.pixelOffice\?\.setScene/);
+    // La franja compacta conserva estados y globos de los 3 agentes.
+    for (const id of ['desk-planner-state', 'desk-coder-state', 'desk-qa-state', 'bubble-planner', 'bubble-coder', 'bubble-qa']) {
+      assert.ok(body.includes(`id="${id}"`), `falta id="${id}"`);
+    }
+    // Los muñecos viven en el canvas: ya no hay avatar ni monitor CSS.
+    assert.ok(!body.includes('class="pixel-avatar'), 'no debe quedar pixel-avatar');
+    assert.ok(!body.includes('class="pixel-monitor'), 'no debe quedar pixel-monitor');
+
+    const resp = await fetch(`http://127.0.0.1:${port}/office.js`);
+    const module = await resp.text();
+    assert.match(module, /prefers-reduced-motion: reduce/);
+    assert.match(module, /visibilitychange/);
+    assert.match(module, /export function buildAgentSprite/);
+  } finally {
+    await controller.close();
+  }
+});

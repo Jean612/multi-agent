@@ -114,6 +114,161 @@ export function computeScale(availableWidth, availableHeight) {
 }
 
 // ==============================================================================
+// Datos puros de estados, poses y animación (sin DOM)
+// ==============================================================================
+
+/** Estados de escena que produce updatePixelOffice() en index.html. */
+export const SCENE_STATES = ['idle', 'planning', 'code', 'fix', 'qa', 'approved', 'changes_required'];
+
+/** Poses disponibles: nº de frames, duración de cada frame (ms) y desplazamiento vertical por frame. */
+export const POSES = {
+  idle:    { frames: 2, frameMs: 600, dy: [0, 1] },          // respira (baja 1 px)
+  typing:  { frames: 2, frameMs: 120, dy: [0, 0] },          // alterna mano izquierda/derecha
+  inspect: { frames: 4, frameMs: 200, dy: [0, 0, 0, 0] },    // lupa barre de izquierda a derecha
+  alert:   { frames: 2, frameMs: 150, dy: [0, 0] },          // brazos arriba + sacudida horizontal
+  jump:    { frames: 4, frameMs: 120, dy: [0, -3, -5, -3] }, // salto de festejo con brazos arriba
+};
+
+/** Tabla de poses por estado de escena y escritorio (refleja las clases CSS de updatePixelOffice). */
+const POSE_TABLE = {
+  idle:             { planner: 'idle', coder: 'idle',   qa: 'idle'    },
+  planning:         { planner: 'typing', coder: 'idle', qa: 'idle'    },
+  code:             { planner: 'idle', coder: 'typing', qa: 'idle'    },
+  fix:              { planner: 'idle', coder: 'typing', qa: 'idle'    },
+  qa:               { planner: 'idle', coder: 'idle',   qa: 'inspect' },
+  approved:         { planner: 'jump', coder: 'jump',   qa: 'jump'    },
+  changes_required: { planner: 'idle', coder: 'idle',   qa: 'alert'   },
+};
+
+/**
+ * Devuelve el nombre de la pose de un agente para un estado de escena.
+ * Entradas desconocidas devuelven 'idle'.
+ * @param {string} sceneState Estado de escena (ver SCENE_STATES).
+ * @param {string} deskId Identificador del escritorio (ver DESK_IDS).
+ * @returns {string} Nombre de pose (clave de POSES).
+ */
+export function poseFor(sceneState, deskId) {
+  if (!SCENE_STATES.includes(sceneState) || !DESK_IDS.includes(deskId)) return 'idle';
+  return POSE_TABLE[sceneState][deskId];
+}
+
+/**
+ * Devuelve el índice de frame de una pose en un instante dado.
+ * @param {string} pose Nombre de la pose.
+ * @param {number} timeMs Instante en milisegundos.
+ * @param {boolean} [reducedMotion] Si es true, siempre devuelve 0.
+ * @returns {number} Índice de frame (0 si la pose o el tiempo no son válidos).
+ */
+export function frameIndexAt(pose, timeMs, reducedMotion = false) {
+  const def = POSES[pose];
+  if (reducedMotion || !def || !Number.isFinite(timeMs)) return 0;
+  return Math.floor(timeMs / def.frameMs) % def.frames;
+}
+
+// ==============================================================================
+// Sprites procedurales: mapas de caracteres (sin imágenes externas)
+// ==============================================================================
+
+/** Plantilla base del agente (de espaldas, sentado). '.' = transparente. */
+const AGENT_BASE = [
+  '................',
+  '.....HHHHHH.....',
+  '....HHHHHHHH....',
+  '...HHHHHHHHHH...',
+  '...HHHHHHHHHH...',
+  '...HHHHHHHHHH...',
+  '...SHHHHHHHHS...',
+  '....HHHHHHHH....',
+  '......SSSS......',
+  '...BBBBBBBBBB...',
+  '..BBBBBBBBBBBB..',
+  '..BBBBBBBBBBBB..',
+  '.DBBBBBBBBBBBBD.',
+  '.DBBBBBBBBBBBBD.',
+  '.DBBBBBBBBBBBBD.',
+  '.SBBBBBBBBBBBBS.',
+  '..BBBBBBBBBBBB..',
+  '..DDDDDDDDDDDD..',
+  '..PPPPPPPPPPPP..',
+  '..PPPPPPPPPPPP..',
+  '..PPPP....PPPP..',
+  '..PPPP....PPPP..',
+  '..KKKK....KKKK..',
+  '..KKKK....KKKK..',
+];
+
+const SHARED = { S: '#f1c7a0', P: '#2b3550', K: '#151a24', L: '#c0c8d8', G: '#bff6ff' };
+
+/** Paletas por agente: cada una define todas las letras del sprite salvo '.'. */
+export const AGENT_PALETTES = {
+  planner: { ...SHARED, H: '#d8dee9', B: '#4cc2ff', D: '#2a7fb0' }, // Argon: pelo canoso, azul
+  coder:   { ...SHARED, H: '#ff8a3d', B: '#ffb84c', D: '#b97a22' }, // OpenCode: gorra naranja, ámbar
+  qa:      { ...SHARED, H: '#2b2b3a', B: '#62e3e3', D: '#2f9f9f' }, // Kimi: pelo oscuro, cian
+};
+
+/** Reemplaza un carácter del sprite (los strings son inmutables). */
+function setPixel(rows, row, col, ch) {
+  rows[row] = rows[row].slice(0, col) + ch + rows[row].slice(col + 1);
+}
+
+/** Dibuja los brazos levantados (lo usan 'alert' y 'jump'). */
+function raiseArms(rows) {
+  for (let r = 12; r <= 15; r++) {
+    setPixel(rows, r, 1, '.');
+    setPixel(rows, r, 14, '.');
+  }
+  for (let r = 5; r <= 8; r++) {
+    setPixel(rows, r, 1, 'D');
+    setPixel(rows, r, 14, 'D');
+  }
+  setPixel(rows, 4, 1, 'S');
+  setPixel(rows, 4, 14, 'S');
+}
+
+/**
+ * Genera el sprite de un agente para una pose y frame dados (función pura).
+ * @param {string} pose Nombre de la pose (las desconocidas se tratan como 'idle').
+ * @param {number} frame Índice de frame (se normaliza con módulo).
+ * @returns {{rows: string[], dx: number, dy: number}} Filas de 16 caracteres y desplazamiento.
+ */
+export function buildAgentSprite(pose, frame) {
+  if (!POSES[pose]) pose = 'idle';
+  const def = POSES[pose];
+  const n = def.frames;
+  const f = ((frame % n) + n) % n;
+
+  const rows = [...AGENT_BASE];
+  const dy = def.dy[f] ?? 0;
+  const dx = pose === 'alert' ? (f === 0 ? -1 : 1) : 0;
+
+  if (pose === 'typing') {
+    // Mano alterna arriba: izquierda en frame 0, derecha en frame 1.
+    const col = f === 0 ? 1 : 14;
+    setPixel(rows, 15, col, 'D');
+    setPixel(rows, 13, col, 'S');
+  } else if (pose === 'alert' || pose === 'jump') {
+    raiseArms(rows);
+  } else if (pose === 'inspect') {
+    // Lupa de 4×4 sobre el hombro derecho, barriendo de izquierda a derecha.
+    const c0 = [9, 10, 11, 10][f];
+    for (let c = c0; c <= c0 + 3; c++) {
+      setPixel(rows, 9, c, 'L');
+      setPixel(rows, 12, c, 'L');
+    }
+    for (let r = 10; r <= 11; r++) {
+      setPixel(rows, r, c0, 'L');
+      setPixel(rows, r, c0 + 3, 'L');
+      setPixel(rows, r, c0 + 1, 'G');
+      setPixel(rows, r, c0 + 2, 'G');
+    }
+    setPixel(rows, 13, 13, 'S'); // mano que sostiene la lupa
+    setPixel(rows, 14, 14, 'D'); // manga
+  }
+
+  return { rows, dx, dy };
+}
+
+// ==============================================================================
 // Dibujo procedural (solo fillRect con coordenadas enteras)
 // ==============================================================================
 
@@ -239,6 +394,30 @@ function renderStaticScene(ctx, map) {
   }
 }
 
+/** Pinta un sprite (mapa de caracteres) con la paleta del agente; '.' no se pinta. */
+function drawSprite(ctx, rows, palette, x, y) {
+  let lastColor = null;
+  for (let row = 0; row < rows.length; row++) {
+    const line = rows[row];
+    for (let col = 0; col < line.length; col++) {
+      const ch = line[col];
+      if (ch === '.') continue;
+      const color = palette[ch];
+      if (!color) continue;
+      if (color !== lastColor) {
+        ctx.fillStyle = color;
+        lastColor = color;
+      }
+      ctx.fillRect(x + col, y + row, 1, 1);
+    }
+  }
+}
+
+/** Posición (esquina superior izquierda) del agente sentado frente a su escritorio. */
+export function agentAnchor(desk) {
+  return { x: desk.col * TILE + 8, y: (desk.row + 1) * TILE + 9 - 24 };
+}
+
 /**
  * Monta la oficina pixel-art sobre un <canvas> existente.
  * @param {HTMLCanvasElement} canvas Canvas destino.
@@ -256,7 +435,7 @@ export function createOffice(canvas, options = {}) {
 
   const map = buildOfficeMap();
 
-  // Capa estática prerenderizada una sola vez: el bucle solo hace drawImage.
+  // Capa estática prerenderizada una sola vez: el bucle solo hace drawImage + sprites.
   const staticLayer = document.createElement('canvas');
   staticLayer.width = INTERNAL_WIDTH;
   staticLayer.height = INTERNAL_HEIGHT;
@@ -264,11 +443,38 @@ export function createOffice(canvas, options = {}) {
   staticCtx.imageSmoothingEnabled = false;
   renderStaticScene(staticCtx, map);
 
-  function render() {
+  const host = options.host ?? canvas.closest('.pixel-office') ?? canvas.parentElement;
+
+  // Estado de escena inicial: el módulo carga después del primer updatePixelOffice.
+  let sceneState = SCENE_STATES.includes(host?.dataset?.sceneState) ? host.dataset.sceneState : 'idle';
+
+  // Accesibilidad: sin animación si el usuario pidió reduced-motion.
+  const motionQuery = window.matchMedia?.('(prefers-reduced-motion: reduce)') ?? null;
+  let reducedMotion = !!motionQuery?.matches;
+
+  function render(now = performance.now()) {
     ctx.drawImage(staticLayer, 0, 0);
+    for (const desk of map.desks) {
+      const pose = poseFor(sceneState, desk.id);
+      const frame = frameIndexAt(pose, now, reducedMotion);
+      const sprite = buildAgentSprite(pose, frame);
+      const dx = reducedMotion ? 0 : sprite.dx;
+      const dy = reducedMotion ? 0 : sprite.dy;
+      const a = agentAnchor(desk);
+      drawSprite(ctx, sprite.rows, AGENT_PALETTES[desk.id], a.x + dx, a.y + dy);
+    }
   }
 
-  const host = options.host ?? canvas.closest('.pixel-office') ?? canvas.parentElement;
+  /**
+   * Cambia el estado de escena y re-renderiza al instante.
+   * `context` se acepta y se ignora por ahora; TASK-03 lo usará.
+   */
+  function setScene(state, context = {}) {
+    void context;
+    sceneState = SCENE_STATES.includes(state) ? state : 'idle';
+    render();
+  }
+
   let lastScale = 0;
   function resize() {
     if (!host) return;
@@ -285,10 +491,37 @@ export function createOffice(canvas, options = {}) {
 
   let destroyed = false;
   let rafId = 0;
-  function frame() {
-    if (destroyed) return;
-    if (!document.hidden) render();
+
+  function shouldRun() {
+    return !destroyed && !document.hidden && !reducedMotion;
+  }
+
+  function frame(now) {
+    rafId = 0;
+    if (!shouldRun()) return;
+    render(now);
     rafId = requestAnimationFrame(frame);
+  }
+
+  /** Arranca o detiene el bucle rAF según visibilidad, reduced-motion y destroy. */
+  function syncLoop() {
+    if (shouldRun()) {
+      if (!rafId) rafId = requestAnimationFrame(frame);
+    } else if (rafId) {
+      cancelAnimationFrame(rafId);
+      rafId = 0;
+    }
+  }
+
+  function onVisibility() {
+    syncLoop();
+    if (!document.hidden) render();
+  }
+
+  function onMotionChange() {
+    reducedMotion = !!motionQuery?.matches;
+    syncLoop();
+    render();
   }
 
   let observer = null;
@@ -297,17 +530,22 @@ export function createOffice(canvas, options = {}) {
     observer.observe(host);
   }
   window.addEventListener('resize', resize);
+  document.addEventListener('visibilitychange', onVisibility);
+  motionQuery?.addEventListener?.('change', onMotionChange);
 
   resize();
   render();
-  rafId = requestAnimationFrame(frame);
+  syncLoop();
 
   function destroy() {
     destroyed = true;
-    cancelAnimationFrame(rafId);
+    if (rafId) cancelAnimationFrame(rafId);
+    rafId = 0;
     if (observer) observer.disconnect();
     window.removeEventListener('resize', resize);
+    document.removeEventListener('visibilitychange', onVisibility);
+    motionQuery?.removeEventListener?.('change', onMotionChange);
   }
 
-  return { render, resize, destroy, map };
+  return { render, resize, destroy, setScene, map };
 }

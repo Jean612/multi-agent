@@ -275,6 +275,10 @@
     image-rendering: pixelated;
     border: 1px solid var(--border); border-radius: 6px; background: #1a1410;
   }
+  /* Franja compacta bajo el canvas: los muñecos viven en el canvas. */
+  .office-floor .pixel-desk { padding: 6px 8px; gap: 4px; }
+  .office-floor .desk-stage { min-height: 0; }
+  .office-floor .speech-bubble { font-size: 10.5px; padding: 3px 6px; }
   @keyframes pixel-float { from { transform: translateY(0); } to { transform: translateY(-3px); } }
   @keyframes pixel-type { from { transform: translateY(0); } to { transform: translateY(-1px); } }
   @keyframes pixel-code-bars { from { opacity: .45; } to { opacity: 1; } }
@@ -357,11 +361,6 @@
         <span class="desk-state" id="desk-planner-state">IDLE</span>
       </div>
       <div class="desk-stage">
-        <div class="pixel-avatar avatar-planner" aria-hidden="true"></div>
-        <div class="pixel-monitor monitor-planner" aria-hidden="true">
-          <span class="screen-line"></span>
-          <span class="screen-line short"></span>
-        </div>
         <div class="speech-bubble" id="bubble-planner">Esperando épica o 01-PLAN.md…</div>
       </div>
     </article>
@@ -373,12 +372,6 @@
         <span class="desk-state" id="desk-coder-state">IDLE</span>
       </div>
       <div class="desk-stage">
-        <div class="pixel-avatar avatar-coder" aria-hidden="true"></div>
-        <div class="pixel-monitor monitor-coder" aria-hidden="true">
-          <span class="screen-line"></span>
-          <span class="screen-line"></span>
-          <span class="screen-line short"></span>
-        </div>
         <div class="speech-bubble" id="bubble-coder">Listo para codificar</div>
       </div>
     </article>
@@ -390,11 +383,6 @@
         <span class="desk-state" id="desk-qa-state">IDLE</span>
       </div>
       <div class="desk-stage">
-        <div class="pixel-avatar avatar-qa" aria-hidden="true"></div>
-        <div class="pixel-monitor monitor-qa" aria-hidden="true">
-          <span class="pixel-loupe">🔎</span>
-          <span class="screen-line short"></span>
-        </div>
         <div class="speech-bubble" id="bubble-qa">Sin diff por auditar</div>
       </div>
     </article>
@@ -591,8 +579,14 @@
     grid.classList.remove('hidden');
   }
 
-  /** Sincroniza la oficina Pixel Agents con el estado en vivo del pipeline. */
   function updatePixelOffice(s) {
+    applyPixelOfficeState(s);
+    const office = $('pixel-office');
+    if (office) window.pixelOffice?.setScene(office.dataset.sceneState, { run: s.activeRun, status: s.status });
+  }
+
+  /** Sincroniza la oficina Pixel Agents con el estado en vivo del pipeline. */
+  function applyPixelOfficeState(s) {
     const office = $('pixel-office');
     if (!office) return;
     const st = s.status || {};
