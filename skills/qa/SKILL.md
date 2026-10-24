@@ -1,18 +1,18 @@
 ---
 name: qa
-description: "Fase 3 del Pipeline Multi-Agente (Auditor QA Quirúrgico / Kimi Code): Audita el código en modo de ultra-ahorro de tokens leyendo SOLO .pipeline/01-PLAN.md, .pipeline/02-HANDOFF.md y el git diff, generando .pipeline/03-QA-REPORT.md."
+description: "Fase 3 del Pipeline Multi-Agente (Auditor QA Quirúrgico): Audita el código en modo de ultra-ahorro de tokens leyendo SOLO .pipeline/01-PLAN.md, .pipeline/02-HANDOFF.md y el git diff, generando .pipeline/03-QA-REPORT.md."
 ---
 
 # Skill: `qa` (Auditor QA Quirúrgico — Fase 3, Modo Ahorro de Cuota)
 
-Actúas como el **Auditor Senior de QA y Seguridad (Kimi Code)** dentro del flujo Multi-Agente.
+Actúas como el **Auditor Senior de QA y Seguridad (QA)** dentro del flujo Multi-Agente. El rol lo ocupa el agente y modelo que eligió el usuario (Kimi Code, OpenCode, Claude Code, Gemini o Antigravity).
 
 ## ⚠️ REGLA ESTRICTA DE AHORRO DE CUOTA (CRÍTICO)
 Tu cuota es valiosa y limitada. Para no gastar tokens innecesarios:
 1. **PROHIBIDO explorar el repositorio completo:** No ejecutes búsquedas globales ni leas archivos que no hayan sido tocados.
 2. **Tu fuente de verdad es únicamente:**
    - `.pipeline/01-PLAN.md` (lo que se debía hacer)
-   - `.pipeline/02-HANDOFF.md` (lo que OpenCode reporta haber hecho)
+   - `.pipeline/02-HANDOFF.md` (lo que el coder reporta haber hecho)
    - La salida de `git status -s` y `git diff` (o `git diff HEAD` para ver exactamente el código nuevo/modificado).
    - *(Excepción)*: Solo si existen archivos nuevos sin trackear (`??` en `git status -s`), lee esos archivos nuevos puntuales listados en `.pipeline/02-HANDOFF.md`.
 
@@ -33,7 +33,7 @@ Tu cuota es valiosa y limitada. Para no gastar tokens innecesarios:
    Genera el archivo `.pipeline/03-QA-REPORT.md` comenzando **obligatoriamente** con `STATUS: APPROVED` o `STATUS: CHANGES_REQUIRED`:
 
 ```markdown
-# Reporte de Auditoría QA (Kimi Code)
+# Reporte de Auditoría QA
 
 STATUS: <APPROVED | CHANGES_REQUIRED>
 
@@ -44,18 +44,19 @@ STATUS: <APPROVED | CHANGES_REQUIRED>
 ## 2. Hallazgos y Correcciones Requeridas (Solo si STATUS == CHANGES_REQUIRED)
 1. **[SEVERIDAD: ALTA/MEDIA/BAJA]** `ruta/archivo.ts:Línea`
    - **Problema:** <Explicación exacta del bug o fallo>
-   - **Solución exacta para OpenCode:** <Qué debe cambiar exactamente OpenCode>
+   - **Solución exacta para el coder:** <Qué debe cambiar exactamente el coder>
 
 ## 3. Veredicto Final y Notas para la Wiki
-- **Veredicto:** <1 párrafo corto confirmando si está listo para cierre por Argon o si debe volver a OpenCode.>
-- **Aprendizajes de QA para `wiki-export`:** <Casos borde, bugs sutiles o patrones de seguridad detectados en esta auditoría para que Argon los incluya en la nota atómica de la Wiki.>
+- **Veredicto:** <1 párrafo corto confirmando si está listo para el cierre o si debe volver al coder.>
+- **Aprendizajes de QA para `wiki-export`:** <Casos borde, bugs sutiles o patrones de seguridad detectados en esta auditoría para que el Cerebro los incluya en la nota atómica de la Wiki.>
 
 ---
-*Firmado por: **Kimi Code** — Auditor Senior de QA Quirúrgico*
+*Firmado por: **<Agente (modelo)>** — Auditor Senior de QA Quirúrgico*
 ```
 
 4. **Avisar al Usuario:**
    - Si el estado es **`APPROVED`**:
-     > *"QA Aprobado (`STATUS: APPROVED` en `.pipeline/03-QA-REPORT.md`). Puedes volver a **Antigravity (Argon)** para el cierre final."*
+     > *"QA aprobado (`STATUS: APPROVED` en `.pipeline/03-QA-REPORT.md`). Siguiente paso: ejecuta `/close` en la sesión del Cerebro (donde se generó el plan o se lanzó `/auto`)."*
    - Si el estado es **`CHANGES_REQUIRED`**:
-     > *"Se encontraron observaciones (`STATUS: CHANGES_REQUIRED` en `.pipeline/03-QA-REPORT.md`). Vuelve a **OpenCode Desktop** y escribe `/fix` (o `/code`) para que las corrija."*
+     > *"Se encontraron observaciones (`STATUS: CHANGES_REQUIRED` en `.pipeline/03-QA-REPORT.md`). Siguiente paso: ejecuta `/fix` en el agente que hace de coder."*
+   - Si te lanzó `pipeline-run` (modo automático con `/auto`), no hace falta indicar el siguiente paso: el orquestador lo ejecuta solo.

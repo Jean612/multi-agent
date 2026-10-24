@@ -1,19 +1,19 @@
 ---
 name: pipeline-code
-description: "Fase 2 del Pipeline Multi-Agente (Coder / OpenCode): Lee .pipeline/01-PLAN.md (y .pipeline/03-QA-REPORT.md si existe), implementa el código, ejecuta los tests en bucle hasta que pasen y genera .pipeline/02-HANDOFF.md."
+description: "Fase 2 del Pipeline Multi-Agente (Coder): Lee .pipeline/01-PLAN.md (y .pipeline/03-QA-REPORT.md si existe), implementa el código, ejecuta los tests en bucle hasta que pasen y genera .pipeline/02-HANDOFF.md."
 ---
 
 # Skill: `pipeline-code` (Coder / Iterador — Fase 2)
 
-Actúas como el **Desarrollador Principal e Iterador (OpenCode con GLM 5.3 Flash)** dentro del flujo Multi-Agente.
+Actúas como el **Desarrollador Principal e Iterador (Coder)** dentro del flujo Multi-Agente. El rol lo ocupa el agente y modelo que eligió el usuario (OpenCode, Kimi Code, Claude Code, Gemini o Antigravity).
 
 ## Flujo de Trabajo
 
 ### 1. Leer el Buzón de Entrada (`.pipeline/`)
-1. Lee `.pipeline/01-PLAN.md`. Si no existe, detente y pídele al usuario que genere primero el plan con el Cerebro (Antigravity).
+1. Lee `.pipeline/01-PLAN.md`. Si no existe, detente y pídele al usuario que genere primero el plan con el Cerebro (`/plan`).
 2. Comprueba si existe `.pipeline/03-QA-REPORT.md`:
    - **Si NO existe:** Estás en la **Iteración 1 (Implementación inicial)** siguiendo `.pipeline/01-PLAN.md`.
-   - **Si SÍ existe y dice `STATUS: CHANGES_REQUIRED`:** Estás en una **Iteración de Corrección**. Tu prioridad absoluta es resolver cada uno de los puntos listados por Kimi Code en `.pipeline/03-QA-REPORT.md` sin romper lo ya avanzado en `.pipeline/01-PLAN.md`.
+   - **Si SÍ existe y dice `STATUS: CHANGES_REQUIRED`:** Estás en una **Iteración de Corrección**. Tu prioridad absoluta es resolver cada uno de los puntos listados por el QA en `.pipeline/03-QA-REPORT.md` sin romper lo ya avanzado en `.pipeline/01-PLAN.md`.
 
 ### 2. Implementar e Iterar
 1. Modifica o crea únicamente los archivos indicados en el plan (o necesarios para resolver los hallazgos de QA).
@@ -21,10 +21,10 @@ Actúas como el **Desarrollador Principal e Iterador (OpenCode con GLM 5.3 Flash
 3. Si algún test o compilación falla, **itera y corrígelo tú mismo** tantas veces como sea necesario hasta que todo pase en verde.
 
 ### 3. Generar `.pipeline/02-HANDOFF.md`
-Cuando el código compile y pase las verificaciones, escribe el archivo `.pipeline/02-HANDOFF.md` con este formato compacto (pensado para ahorrar tokens a Kimi Code en la fase de QA):
+Cuando el código compile y pase las verificaciones, escribe el archivo `.pipeline/02-HANDOFF.md` con este formato compacto (pensado para ahorrar tokens al QA):
 
 ```markdown
-# Handoff de Desarrollo (OpenCode -> Kimi QA)
+# Handoff de Desarrollo (Coder -> QA)
 
 - **Iteración:** <1, 2, etc.>
 - **Estado de Compilación / Tests:** PASS (o detalle si algo no pudo correrse)
@@ -38,12 +38,14 @@ Cuando el código compile y pase las verificaciones, escribe el archivo `.pipeli
 
 ## 3. Notas para QA y Aprendizajes para la Wiki
 - **Decisiones / Respuestas a QA:** <Cualquier decisión técnica o respuesta directa a observaciones previas de 03-QA-REPORT.md>
-- **Descubrimientos para `wiki-export`:** <Bugs resueltos, quirks del entorno, patrones o aprendizajes técnicos de esta sesión para que Argon los exporte a la Wiki al cerrar>
+- **Descubrimientos para `wiki-export`:** <Bugs resueltos, quirks del entorno, patrones o aprendizajes técnicos de esta sesión para que el Cerebro los exporte a la Wiki al cerrar>
 
 ---
-*Firmado por: **OpenCode (GLM 5.3 Flash)** — Coder & Iterador*
+*Firmado por: **<Agente (modelo)>** — Coder & Iterador*
 ```
 
 ### 4. Avisar al Usuario
 Indícale al usuario:
-> *"Implementación completada y registrada en `.pipeline/02-HANDOFF.md`. Pasa a tu ventana de **Kimi Code Desktop** y escribe `/qa`."*
+> *"Implementación completada y registrada en `.pipeline/02-HANDOFF.md`. Siguiente paso: ejecuta `/qa` en el agente que hará la auditoría."*
+
+Si te lanzó `pipeline-run` (modo automático con `/auto`), no hace falta indicar el siguiente paso: el orquestador lo ejecuta solo.

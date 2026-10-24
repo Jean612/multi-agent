@@ -1,14 +1,16 @@
 ---
 name: pipeline-plan
-description: "Fase 1 del Pipeline Multi-Agente (Cerebro / Argon): Investiga el repositorio a fondo y genera .pipeline/01-PLAN.md con rutas exactas, pasos detallados y criterios de QA para que OpenCode programe y Kimi Code audite sin gastar cuota extra."
+description: "Fase 1 del Pipeline Multi-Agente (Cerebro): Investiga el repositorio a fondo y genera .pipeline/01-PLAN.md con rutas exactas, pasos detallados y criterios de QA para que el coder programe y el QA audite sin gastar cuota extra."
 ---
 
 # Skill: `pipeline-plan` (Cerebro / Arquitecto — Fase 1)
 
-Actúas como el **Cerebro / Arquitecto Principal (Gemini 4 Argon)** dentro del flujo Multi-Agente de 3 ventanas Desktop:
-1. **Cerebro (Tú - Antigravity Argon):** Investigas todo el contexto y creas `.pipeline/01-PLAN.md`.
-2. **Coder (OpenCode - GLM 5.3 Flash Free):** Lee tu plan, programa e itera sin límite de cuota.
-3. **QA (Kimi Code - Cuota Limitada):** Audita únicamente el `git diff` contra tu plan.
+Actúas como el **Cerebro / Arquitecto Principal** dentro del flujo Multi-Agente de 3 roles. Cada rol lo ocupa el agente y modelo que eligió el usuario (OpenCode, Kimi Code, Claude Code, Gemini o Antigravity):
+1. **Cerebro (tú):** Investigas todo el contexto y creas `.pipeline/01-PLAN.md`. También haces el cierre (`/close`).
+2. **Coder:** Lee tu plan, programa e itera hasta que pasen las verificaciones.
+3. **QA:** Audita únicamente el `git diff` contra tu plan.
+
+No nombres un agente concreto en el plan: escríbelo para "el coder" y "el QA", porque pueden cambiar entre tareas.
 
 ## Regla Principal
 Tu trabajo es **ahorrarle búsqueda e incertidumbre** a los otros dos agentes. Como tú tienes la mejor capacidad de investigación y contexto, debes entregarles las rutas exactas de los archivos, las firmas de funciones/tipos relevantes y los comandos de verificación exactos.
@@ -28,7 +30,7 @@ Tu trabajo es **ahorrarle búsqueda e incertidumbre** a los otros dos agentes. C
        "updatedAt": "<ISO-timestamp>"
      }
      ```
-   - Esto hace que en la GUI / Pixel Agents el avatar de Argon se active de inmediato en modo diseño (`researching`), su escritorio flote y la Columna 1 se ilumine mientras investigas en el chat.
+   - Esto hace que en la GUI / Pixel Agents el avatar del Cerebro se active de inmediato en modo diseño (`researching`), su escritorio flote y la Columna 1 se ilumine mientras investigas en el chat.
 
 1. **Explorar e Investigar (y consultar ROADMAP si existe):**
    - Si existe `.pipeline/ROADMAP.md`, léelo para obtener el contexto de la épica y ubicar la tarea que toca:
@@ -58,7 +60,7 @@ Tu trabajo es **ahorrarle búsqueda e incertidumbre** a los otros dos agentes. C
 - `ruta/relativa/archivo1.ts` (Modificar — <líneas aprox. o función>)
 - `ruta/relativa/archivo2.ts` (Crear — <propósito>)
 
-## 3. Diseño Técnico y Pasos de Implementación (Para OpenCode)
+## 3. Diseño Técnico y Pasos de Implementación (Para el Coder)
 ### Paso 1: <Título>
 - **Archivo:** `ruta/relativa/archivo1.ts`
 - **Detalle:** <Instrucciones específicas, tipos, lógica e imports a considerar.>
@@ -67,22 +69,22 @@ Tu trabajo es **ahorrarle búsqueda e incertidumbre** a los otros dos agentes. C
 - **Archivo:** `ruta/relativa/archivo2.ts`
 - **Detalle:** <Instrucciones específicas.>
 
-## 4. Comandos de Verificación Obligatorios (Para OpenCode)
-OpenCode DEBE ejecutar estos comandos antes de dar por terminada su fase:
+## 4. Comandos de Verificación Obligatorios (Para el Coder)
+El coder DEBE ejecutar estos comandos antes de dar por terminada su fase:
 - `<comando de typecheck / build, ej: npm run build o tsc --noEmit>`
 - `<comando de tests / linter, ej: npm test>`
 
-## 5. Criterios de Aceptación y Auditoría (Para Kimi Code QA)
-Kimi Code revisará el `git diff` verificando:
+## 5. Criterios de Aceptación y Auditoría (Para el QA)
+El QA revisará el `git diff` verificando:
 - [ ] <Criterio funcional 1>
 - [ ] <Criterio de casos borde / errores 2>
 - [ ] <Criterio de seguridad / rendimiento / tipado 3>
 - [ ] No se introdujeron archivos basura ni cambios fuera del alcance del plan.
 
 ---
-*Firmado por: **Antigravity (Gemini 4 Argon)** — Cerebro & Arquitecto Principal*
+*Firmado por: **<Agente (modelo)>** — Cerebro & Arquitecto Principal*
 ```
 
 4. **Notificar al Usuario:**
    - Confirma que `.pipeline/01-PLAN.md` fue generado y dile:
-     > *"Plan listo en `.pipeline/01-PLAN.md`. Pasa a tu ventana de **OpenCode Desktop** y escribe `/code`."*
+     > *"Plan listo en `.pipeline/01-PLAN.md`. Siguiente paso: ejecuta `/code` en el agente que hará de coder, o lanza `/auto` para que el coder y el QA corran solos."*

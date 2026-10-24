@@ -13,12 +13,18 @@ const PLAN_FILE = '01-PLAN.md';
 const HANDOFF_FILE = '02-HANDOFF.md';
 const QA_FILE = '03-QA-REPORT.md';
 
+/**
+ * Siguiente paso por rol (Cerebro, Coder, QA), sin nombrar agentes: cada rol lo
+ * ocupa el agente/modelo que elija el usuario y puede cambiar entre tareas.
+ */
 const NEXT_STEPS = {
-  NO_PLAN: '1. Antigravity (Argon): Generar plan con pipeline-plan',
-  NO_HANDOFF: '2. OpenCode Desktop: Ejecutar /code',
-  NO_QA: '3. Kimi Code Desktop: Ejecutar /qa',
-  CHANGES_REQUIRED: '2. OpenCode Desktop: Ejecutar /fix para corregir observaciones de QA',
-  APPROVED: '4. Antigravity (Argon): Ejecutar pipeline-close',
+  NO_PLAN: '1. Cerebro: genera el plan con /plan (o lanza /auto)',
+  NO_HANDOFF: '2. Coder: ejecuta /code',
+  NO_QA: '3. QA: ejecuta /qa',
+  CHANGES_REQUIRED: '2. Coder: ejecuta /fix para corregir las observaciones de QA',
+  RE_QA: '3. QA: re-ejecuta /qa sobre las correcciones',
+  UNKNOWN_QA: '3. QA: re-ejecuta /qa (STATUS no reconocido en 03-QA-REPORT.md)',
+  APPROVED: '4. Cerebro: ejecuta /close (pipeline-close)',
 };
 
 /**
@@ -129,13 +135,13 @@ export async function analyzePipeline(projectDir) {
     // el coder ya resolvió las observaciones y toca re-auditar (no re-fix).
     nextStep =
       handoffMtime !== null && qaMtime !== null && handoffMtime > qaMtime
-        ? '3. Kimi Code Desktop: Re-ejecutar /qa sobre las correcciones'
+        ? NEXT_STEPS.RE_QA
         : NEXT_STEPS.CHANGES_REQUIRED;
   } else if (qaStatus === 'APPROVED') {
     nextStep = NEXT_STEPS.APPROVED;
   } else {
     // STATUS desconocido o ausente en el reporte de QA: no se puede avanzar con certeza.
-    nextStep = '3. Kimi Code Desktop: Ejecutar /qa (STATUS no reconocido en 03-QA-REPORT.md)';
+    nextStep = NEXT_STEPS.UNKNOWN_QA;
   }
 
   return {

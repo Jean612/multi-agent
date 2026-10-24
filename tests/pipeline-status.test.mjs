@@ -51,7 +51,7 @@ test('estado 1: sin carpeta .pipeline/ sugiere generar el plan (Antigravity)', a
     assert.equal(state.task, null);
     assert.equal(state.iteration, null);
     assert.equal(state.qaStatus, null);
-    assert.equal(state.nextStep, '1. Antigravity (Argon): Generar plan con pipeline-plan');
+    assert.equal(state.nextStep, '1. Cerebro: genera el plan con /plan (o lanza /auto)');
   } finally {
     await cleanup(tempDir);
   }
@@ -66,7 +66,7 @@ test('estado 2: solo 01-PLAN.md extrae la Tarea y sugiere /code (OpenCode)', asy
     assert.equal(state.planExists, true);
     assert.equal(state.task, 'Implementar CLI de estado');
     assert.equal(state.handoffExists, false);
-    assert.equal(state.nextStep, '2. OpenCode Desktop: Ejecutar /code');
+    assert.equal(state.nextStep, '2. Coder: ejecuta /code');
   } finally {
     await cleanup(tempDir);
   }
@@ -83,7 +83,7 @@ test('estado 3: 01-PLAN.md + 02-HANDOFF.md extraen Iteración y sugieren /qa (Ki
     assert.equal(state.handoffExists, true);
     assert.equal(state.iteration, '1');
     assert.equal(state.qaExists, false);
-    assert.equal(state.nextStep, '3. Kimi Code Desktop: Ejecutar /qa');
+    assert.equal(state.nextStep, '3. QA: ejecuta /qa');
   } finally {
     await cleanup(tempDir);
   }
@@ -101,7 +101,7 @@ test('estado 4: QA con CHANGES_REQUIRED y handoff sin tocar sugiere /fix (OpenCo
     assert.equal(state.qaStatus, 'CHANGES_REQUIRED');
     assert.equal(
       state.nextStep,
-      '2. OpenCode Desktop: Ejecutar /fix para corregir observaciones de QA'
+      '2. Coder: ejecuta /fix para corregir las observaciones de QA'
     );
   } finally {
     await cleanup(tempDir);
@@ -128,7 +128,7 @@ test('estado 4b (caso borde): QA CHANGES_REQUIRED pero handoff modificado despu�
     assert.ok(state.handoffMtime > state.qaMtime, 'handoff debe ser más reciente que QA');
     assert.equal(
       state.nextStep,
-      '3. Kimi Code Desktop: Re-ejecutar /qa sobre las correcciones'
+      '3. QA: re-ejecuta /qa sobre las correcciones'
     );
   } finally {
     await cleanup(tempDir);
@@ -144,7 +144,7 @@ test('estado 5: QA con STATUS: APPROVED sugiere pipeline-close (Antigravity)', a
   try {
     const state = await analyzePipeline(tempDir);
     assert.equal(state.qaStatus, 'APPROVED');
-    assert.equal(state.nextStep, '4. Antigravity (Argon): Ejecutar pipeline-close');
+    assert.equal(state.nextStep, '4. Cerebro: ejecuta /close (pipeline-close)');
   } finally {
     await cleanup(tempDir);
   }
@@ -163,7 +163,7 @@ test('no lanza excepciones ante archivos con contenido vacío o STATUS desconoci
     assert.equal(state.qaStatus, null);
     assert.equal(
       state.nextStep,
-      '3. Kimi Code Desktop: Ejecutar /qa (STATUS no reconocido en 03-QA-REPORT.md)'
+      '3. QA: re-ejecuta /qa (STATUS no reconocido en 03-QA-REPORT.md)'
     );
   } finally {
     await cleanup(tempDir);
@@ -236,5 +236,26 @@ test('extractStatus ignora un STATUS que aparece después de las primeras 10 lí
     assert.equal((await analyzePipeline(tempDir)).qaStatus, null);
   } finally {
     await cleanup(tempDir);
+  }
+});
+
+test('nextStep nunca nombra un agente concreto: cada rol puede ocuparlo cualquier agente', async () => {
+  const projectDir = await fs.mkdtemp(path.join(tmpdir(), 'pipeline-status-roles-'));
+  try {
+    await fs.mkdir(path.join(projectDir, '.pipeline'), { recursive: true });
+    const states = [];
+    states.push((await analyzePipeline(projectDir)).nextStep);
+    await fs.writeFile(path.join(projectDir, '.pipeline', '01-PLAN.md'), '# Plan\n', 'utf8');
+    states.push((await analyzePipeline(projectDir)).nextStep);
+    await fs.writeFile(path.join(projectDir, '.pipeline', '02-HANDOFF.md'), '# Handoff\n', 'utf8');
+    states.push((await analyzePipeline(projectDir)).nextStep);
+    await fs.writeFile(path.join(projectDir, '.pipeline', '03-QA-REPORT.md'), 'STATUS: APPROVED\n', 'utf8');
+    states.push((await analyzePipeline(projectDir)).nextStep);
+    for (const step of states) {
+      assert.doesNotMatch(step, /Kimi|OpenCode|Antigravity|Argon|Claude|Gemini|Desktop/);
+      assert.match(step, /^\d\. (Cerebro|Coder|QA):/);
+    }
+  } finally {
+    await fs.rm(projectDir, { recursive: true, force: true });
   }
 });

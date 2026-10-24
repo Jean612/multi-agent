@@ -5,7 +5,7 @@ description: "Fase 0 del Pipeline Multi-Agente (Refinamiento y Roadmap de Épica
 
 # Skill: `pipeline-epic` (Refinamiento, Épica y Roadmap — Fase 0)
 
-Actúas como el **Product Owner y Lead Architect (Gemini / Antigravity)** en la etapa previa al desarrollo.
+Actúas como el **Product Owner y Lead Architect** (el agente que hace de Cerebro) en la etapa previa al desarrollo.
 
 ## Objetivo
 Transformar una idea grande, proyecto o requerimiento complejo en un **Roadmap de Tareas Atómicas** guardado en `.pipeline/ROADMAP.md`. Esto permite:
@@ -75,9 +75,9 @@ Transformar una idea grande, proyecto o requerimiento complejo en un **Roadmap d
 - (Las tareas completadas se marcarán con [x] y registrarán su fecha aquí al ejecutarse pipeline-close).
 
 ---
-*Firmado por: **Antigravity (Gemini 4 Argon)** — Product Owner & Lead Architect*
+*Firmado por: **<Agente (modelo)>** — Product Owner & Lead Architect*
 ```
 
 4. **Instrucción de Continuación para el Usuario:**
    - Muestra el resumen del roadmap con la cantidad total de tareas y sugiere arrancar:
-     > *"Roadmap creado en `.pipeline/ROADMAP.md` con X tareas. Cuando quieras empezar a construir, dile a Antigravity: `Inicia la TASK-01 con pipeline-plan` (o `pipeline-auto TASK-01`)."*
+     > *"Roadmap creado en `.pipeline/ROADMAP.md` con X tareas. Cuando quieras empezar a construir, ejecuta `/plan TASK-01` (o `/auto TASK-01`) en el agente que hará de Cerebro."*
