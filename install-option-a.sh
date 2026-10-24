@@ -16,10 +16,11 @@ AGENTS_SHARED_SKILLS="/Volumes/JeanFiles/.agents/skills"
 
 mkdir -p "$AGY_SKILLS" "$OPENCODE_SKILLS" "$OPENCODE_COMMANDS" "$KIMI_SKILLS" "$AGENTS_SHARED_SKILLS"
 
-# 2. Enlazar Skills para Antigravity (Cerebro: pipeline-plan y pipeline-close)
+# 2. Enlazar Skills para Antigravity (Cerebro: pipeline-plan, pipeline-close y pipeline-auto)
 ln -sfn "$SKILLS_SRC/pipeline-plan" "$AGY_SKILLS/pipeline-plan"
 ln -sfn "$SKILLS_SRC/pipeline-close" "$AGY_SKILLS/pipeline-close"
-echo "✅ Antigravity skills enlazadas: pipeline-plan, pipeline-close"
+ln -sfn "$SKILLS_SRC/pipeline-auto" "$AGY_SKILLS/pipeline-auto"
+echo "✅ Antigravity skills enlazadas: pipeline-plan, pipeline-close, pipeline-auto"
 
 # 3. Enlazar Skill y Slash Commands (/code, /fix) para OpenCode
 ln -sfn "$SKILLS_SRC/pipeline-code" "$OPENCODE_SKILLS/pipeline-code"
@@ -32,12 +33,19 @@ ln -sfn "$SKILLS_SRC/qa" "$KIMI_SKILLS/qa"
 echo "✅ Kimi Code skill (/qa) enlazada"
 
 # 5. Enlazar todas en ~/.agents/skills (estándar universal compartido)
-for skill in pipeline-plan pipeline-code qa pipeline-close; do
+for skill in pipeline-plan pipeline-code qa pipeline-close pipeline-auto; do
   ln -sfn "$SKILLS_SRC/$skill" "$AGENTS_SHARED_SKILLS/$skill"
 done
 echo "✅ Estándar universal ~/.agents/skills actualizado"
 
-# 6. Configurar .pipeline/ en el gitignore global para no ensuciar repositorios
+# 6. Enlazar los CLIs del orquestador en el PATH del usuario
+LOCAL_BIN="/Volumes/JeanFiles/.local/bin"
+mkdir -p "$LOCAL_BIN"
+ln -sfn "$REPO_DIR/bin/pipeline-status.mjs" "$LOCAL_BIN/pipeline-status"
+ln -sfn "$REPO_DIR/bin/pipeline-run.mjs" "$LOCAL_BIN/pipeline-run"
+echo "✅ CLIs enlazados: pipeline-status, pipeline-run ($LOCAL_BIN)"
+
+# 7. Configurar .pipeline/ en el gitignore global para no ensuciar repositorios
 GLOBAL_IGNORE="$(git config --global core.excludesfile || true)"
 if [ -z "$GLOBAL_IGNORE" ]; then
   GLOBAL_IGNORE="$HOME/.gitignore_global"
