@@ -9,6 +9,20 @@ Actúas como **Orquestador del flujo Multi-Agente headless**. Tu única interacc
 
 ## Flujo de Trabajo
 
+### Paso 0 — Telemetría Temprana (Segundo Cero)
+1. Antes de explorar o redactar el plan, escribe o actualiza `.pipeline/runtime.json`:
+   ```json
+   {
+     "running": true,
+     "action": "plan",
+     "step": "plan",
+     "iteration": 1,
+     "task": "<Nombre de la tarea o TASK-XX>",
+     "updatedAt": "<ISO-timestamp>"
+   }
+   ```
+   Esto activa en la GUI el avatar de Argon y el banner iluminado mientras investigas el repo.
+
 ### Paso 1 — Plan (Cerebro / Argon)
 1. Genera `.pipeline/01-PLAN.md` del proyecto destino siguiendo la skill `pipeline-plan`.
 2. El plan debe tener `STATUS: READY_FOR_CODE` en su cabecera; sin plan, `pipeline-run` aborta con `status: NO_PLAN`.

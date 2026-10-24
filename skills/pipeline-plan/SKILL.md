@@ -15,6 +15,21 @@ Tu trabajo es **ahorrarle búsqueda e incertidumbre** a los otros dos agentes. C
 
 ## Pasos de Ejecución
 
+0. **Telemetría Temprana en el Segundo Cero (`.pipeline/runtime.json`):**
+   - Asegúrate de que exista la carpeta `.pipeline/`.
+   - Apenas recibas la instrucción (ANTES de explorar archivos o pensar la arquitectura), escribe o actualiza `.pipeline/runtime.json`:
+     ```json
+     {
+       "running": true,
+       "action": "plan",
+       "step": "plan",
+       "iteration": 1,
+       "task": "<Nombre de la tarea o TASK-XX>",
+       "updatedAt": "<ISO-timestamp>"
+     }
+     ```
+   - Esto hace que en la GUI / Pixel Agents el avatar de Argon se active de inmediato en modo diseño (`researching`), su escritorio flote y la Columna 1 se ilumine mientras investigas en el chat.
+
 1. **Explorar e Investigar (y consultar ROADMAP si existe):**
    - Si existe `.pipeline/ROADMAP.md`, léelo para obtener el contexto de la épica y ubicar la tarea que toca:
      - Si el usuario dice "inicia la siguiente tarea" o no especifica número, selecciona la primera tarea pendiente (`### [ ] TASK-XX`).

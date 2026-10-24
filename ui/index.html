@@ -550,11 +550,13 @@
 
   /** Resalta la columna del agente activo (code/fix → Obrero, qa → Auditor). */
   function updateActiveColumn(activeRun) {
+    $('col-planner')?.classList.remove('live');
     $('col-coder').classList.remove('live');
     $('col-qa').classList.remove('live');
     if (!activeRun?.running) return;
     const activeStep = activeRun.step || activeRun.action;
-    if (activeStep === 'code' || activeStep === 'fix') $('col-coder').classList.add('live');
+    if (activeStep === 'plan' || activeStep === 'planning') $('col-planner')?.classList.add('live');
+    else if (activeStep === 'code' || activeStep === 'fix') $('col-coder').classList.add('live');
     else if (activeStep === 'qa') $('col-qa').classList.add('live');
   }
 
@@ -630,6 +632,22 @@
         setDesk('qa', 'INSPECTING', '🔎 Inspeccionando git diff con lupa…');
         setDesk('coder', 'HANDOFF', '📦 02-HANDOFF.md enviado a QA');
         setDesk('planner', 'READY', '📐 Criterios listos en 01-PLAN.md');
+        return;
+      }
+      if (step === 'plan' || step === 'planning') {
+        office.dataset.sceneState = 'planning';
+        badge.textContent = `🧠 MODO: ARGON INVESTIGANDO ${run.task ? '— ' + run.task : ''}`;
+        badge.className = 'badge warn';
+        $('desk-planner').classList.add('designing');
+        setDesk(
+          'planner',
+          'RESEARCHING',
+          run.task
+            ? `🔬 Investigando código y diseñando arquitectura para ${run.task}…`
+            : '🔬 Investigando repositorio y diseñando 01-PLAN.md…'
+        );
+        setDesk('coder', 'IDLE', '👀 Esperando plan para codificar');
+        setDesk('qa', 'IDLE', 'Sin diff por auditar');
         return;
       }
       office.dataset.sceneState = 'planning';
