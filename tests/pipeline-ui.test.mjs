@@ -144,6 +144,44 @@ test('GET / responde 200 OK con las 3 columnas de Mission Control', async () => 
   }
 });
 
+test('GET / incluye el escenario Pixel Agents, selector de vista y animaciones (TASK-02)', async () => {
+  const { controller, fetchJson } = await startServer({ defaultProjectDir: '.' });
+  try {
+    const { status, body } = await fetchJson('/');
+    assert.equal(status, 200);
+    // Escenario y selector de vista.
+    assert.match(body, /id="pixel-office"/);
+    assert.match(body, /id="view-mode-select"/);
+    assert.match(body, /Oficina Pixel \+ Columnas/);
+    assert.match(body, /Solo Oficina Pixel/);
+    assert.match(body, /Solo Columnas/);
+    // Los 3 escritorios pixel-art.
+    assert.match(body, /id="desk-planner"/);
+    assert.match(body, /id="desk-coder"/);
+    assert.match(body, /id="desk-qa"/);
+    assert.match(body, /id="pixel-scene-badge"/);
+    // Clases de estado y keyframes de animación.
+    assert.match(body, /\.pixel-desk\.designing/);
+    assert.match(body, /\.pixel-desk\.typing/);
+    assert.match(body, /\.pixel-desk\.inspecting/);
+    assert.match(body, /\.pixel-desk\.celebrating/);
+    assert.match(body, /\.pixel-desk\.alert/);
+    assert.match(body, /@keyframes pixel-float/);
+    assert.match(body, /@keyframes pixel-type/);
+    assert.match(body, /@keyframes pixel-code-bars/);
+    assert.match(body, /@keyframes pixel-scan/);
+    assert.match(body, /@keyframes pixel-jump/);
+    // Lógica reactiva y selector de vista.
+    assert.match(body, /function updatePixelOffice/);
+    assert.match(body, /function applyViewMode/);
+    // Responsividad conservada: la oficina colapsa a 1 columna en pantallas medianas.
+    assert.match(body, /@media\s*\(max-width:\s*1100px\)/);
+    assert.match(body, /\.office-floor\s*\{\s*grid-template-columns:\s*1fr/);
+  } finally {
+    await controller.close();
+  }
+});
+
 test('GET /api/state en un proyecto vacío: planExists false y estructura completa', async () => {
   const projectDir = await makeProject();
   const { controller, fetchJson } = await startServer({ defaultProjectDir: projectDir });

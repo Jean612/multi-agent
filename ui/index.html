@@ -198,6 +198,82 @@
   #manual-controls[open] > summary { border-bottom: 1px solid var(--border); }
   .manual-body { display: flex; flex-direction: column; gap: 8px; padding: 10px; }
   #manual-controls textarea { min-height: 180px; }
+  /* ---------- Pixel Agents Office ---------- */
+  .pixel-office {
+    margin: 10px 10px 0; padding: 10px 12px;
+    background-color: #0d1420;
+    background-image:
+      linear-gradient(rgba(76, 194, 255, .05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(76, 194, 255, .05) 1px, transparent 1px);
+    background-size: 12px 12px;
+    border: 1px solid var(--border); border-radius: 10px;
+    image-rendering: pixelated;
+    transition: border-color .2s, box-shadow .2s;
+  }
+  .pixel-office.full-view {
+    flex: 1; margin-bottom: 10px; display: flex; flex-direction: column; justify-content: center;
+  }
+  .office-bar {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 8px; margin-bottom: 8px; flex-wrap: wrap;
+  }
+  .office-title { font-size: 11px; letter-spacing: 1px; color: var(--cyan); text-transform: uppercase; }
+  .office-floor { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+  .pixel-desk {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+    padding: 8px 10px; display: flex; flex-direction: column; gap: 6px;
+    transition: border-color .2s, box-shadow .2s, transform .2s;
+  }
+  .desk-header { display: flex; align-items: center; justify-content: space-between; font-size: 11px; color: var(--muted); }
+  .desk-name { font-weight: bold; color: var(--text); letter-spacing: .5px; }
+  .desk-state { font-size: 9.5px; padding: 1px 6px; border-radius: 4px; border: 1px solid var(--border); color: var(--muted); }
+  .desk-stage { display: flex; align-items: center; gap: 10px; min-height: 48px; }
+  .pixel-avatar {
+    width: 32px; height: 32px; flex: 0 0 32px; border-radius: 4px; position: relative;
+    image-rendering: pixelated; border: 2px solid var(--border);
+  }
+  .pixel-avatar::before {
+    content: ''; position: absolute; top: 8px; left: 7px; width: 5px; height: 5px;
+    background: #dfe9f8; box-shadow: 13px 0 0 #dfe9f8;
+  }
+  .pixel-avatar::after {
+    content: ''; position: absolute; left: 6px; right: 6px; bottom: 4px; height: 9px;
+    background: rgba(255, 255, 255, .28); border-radius: 1px;
+  }
+  .avatar-planner { background: #123752; border-color: var(--accent); }
+  .avatar-coder { background: #3b2810; border-color: var(--amber); }
+  .avatar-qa { background: #133629; border-color: var(--cyan); }
+  .pixel-monitor {
+    width: 42px; height: 30px; flex: 0 0 42px; background: #070b10; border: 2px solid var(--border);
+    border-radius: 4px; padding: 4px; display: flex; flex-direction: column; justify-content: center;
+    gap: 3px; position: relative; overflow: hidden;
+  }
+  .screen-line { display: block; height: 3px; width: 100%; background: var(--border); }
+  .screen-line.short { width: 60%; }
+  .pixel-loupe { font-size: 12px; line-height: 1; display: inline-block; }
+  .speech-bubble {
+    flex: 1; min-width: 0; font-size: 11px; line-height: 1.35; color: var(--text);
+    background: var(--panel-2); border: 1px solid var(--border); border-radius: 6px;
+    padding: 5px 8px; word-break: break-word;
+  }
+  .pixel-desk.designing { border-color: var(--accent); box-shadow: 0 0 16px rgba(76, 194, 255, .22); }
+  .pixel-desk.designing .pixel-avatar { animation: pixel-float 1.1s ease-in-out infinite alternate; }
+  .pixel-desk.designing .screen-line { background: var(--accent); }
+  .pixel-desk.typing { border-color: var(--amber); box-shadow: 0 0 18px rgba(255, 184, 76, .28); }
+  .pixel-desk.typing .pixel-avatar { animation: pixel-type .22s steps(2) infinite alternate; }
+  .pixel-desk.typing .screen-line { background: var(--amber); animation: pixel-code-bars .45s steps(2) infinite alternate; }
+  .pixel-desk.inspecting { border-color: var(--cyan); box-shadow: 0 0 18px rgba(98, 227, 227, .26); }
+  .pixel-desk.inspecting .pixel-loupe { animation: pixel-scan .75s ease-in-out infinite alternate; }
+  .pixel-desk.inspecting .pixel-avatar { animation: pixel-float .9s ease-in-out infinite alternate; }
+  .pixel-office.celebrating { border-color: var(--green); box-shadow: 0 0 24px rgba(52, 211, 120, .2); }
+  .pixel-desk.celebrating { border-color: var(--green); box-shadow: 0 0 16px rgba(52, 211, 120, .25); }
+  .pixel-desk.celebrating .pixel-avatar { animation: pixel-jump .5s ease-in-out infinite alternate; }
+  .pixel-desk.alert { border-color: var(--red); box-shadow: 0 0 16px rgba(255, 91, 91, .25); }
+  @keyframes pixel-float { from { transform: translateY(0); } to { transform: translateY(-3px); } }
+  @keyframes pixel-type { from { transform: translateY(0); } to { transform: translateY(-1px); } }
+  @keyframes pixel-code-bars { from { opacity: .45; } to { opacity: 1; } }
+  @keyframes pixel-scan { from { transform: translateX(-2px); } to { transform: translateX(2px); } }
+  @keyframes pixel-jump { from { transform: translateY(0); } to { transform: translateY(-5px); } }
   /* ---------- Responsivo ---------- */
   html, body { max-width: 100%; }
   header { gap: 10px; }
@@ -211,6 +287,8 @@
     .hdr-field select { flex: 1; min-width: 0; }
     input#manual-dir { width: 100%; max-width: 100%; }
     .live-banner { margin-left: 0; width: 100%; text-align: center; white-space: normal; }
+    .pixel-office { margin: 8px 8px 0; }
+    .office-floor { grid-template-columns: 1fr; }
     #git-diff { max-height: 40vh; }
   }
   @media (max-width: 720px) {
@@ -241,12 +319,77 @@
       <option value="opencode">opencode (DeepSeek Free directo)</option>
     </select>
   </div>
+  <div class="hdr-field">
+    <label>Vista</label>
+    <select id="view-mode-select">
+      <option value="both">Oficina Pixel + Columnas</option>
+      <option value="pixel">Solo Oficina Pixel</option>
+      <option value="columns">Solo Columnas</option>
+    </select>
+  </div>
   <label class="toggle" title="Dispara el pipeline automáticamente al guardar 01-PLAN.md">
     <input type="checkbox" id="auto-watch-toggle">
     <span>⚡ Auto-Pilot al guardar 01-PLAN.md</span>
   </label>
   <div id="live-banner" class="live-banner waiting">🟢 En espera de pipeline-auto</div>
 </header>
+
+<section id="pixel-office" class="pixel-office" data-scene-state="idle">
+  <div class="office-bar">
+    <span class="office-title">🕹️ PIXEL AGENTS OFFICE — TELEMETRÍA EN VIVO</span>
+    <span class="badge" id="pixel-scene-badge">🕹️ MODO: EN ESPERA</span>
+  </div>
+  <div class="office-floor">
+    <!-- Escritorio 1: Argon (Cerebro) -->
+    <article class="pixel-desk" id="desk-planner">
+      <div class="desk-header">
+        <span class="desk-name">🧠 ARGON · CEREBRO</span>
+        <span class="desk-state" id="desk-planner-state">IDLE</span>
+      </div>
+      <div class="desk-stage">
+        <div class="pixel-avatar avatar-planner" aria-hidden="true"></div>
+        <div class="pixel-monitor monitor-planner" aria-hidden="true">
+          <span class="screen-line"></span>
+          <span class="screen-line short"></span>
+        </div>
+        <div class="speech-bubble" id="bubble-planner">Esperando épica o 01-PLAN.md…</div>
+      </div>
+    </article>
+
+    <!-- Escritorio 2: OpenCode (Obrero) -->
+    <article class="pixel-desk" id="desk-coder">
+      <div class="desk-header">
+        <span class="desk-name">⚡ OPENCODE · OBRERO</span>
+        <span class="desk-state" id="desk-coder-state">IDLE</span>
+      </div>
+      <div class="desk-stage">
+        <div class="pixel-avatar avatar-coder" aria-hidden="true"></div>
+        <div class="pixel-monitor monitor-coder" aria-hidden="true">
+          <span class="screen-line"></span>
+          <span class="screen-line"></span>
+          <span class="screen-line short"></span>
+        </div>
+        <div class="speech-bubble" id="bubble-coder">Listo para codificar</div>
+      </div>
+    </article>
+
+    <!-- Escritorio 3: Kimi / DeepSeek (Auditor QA) -->
+    <article class="pixel-desk" id="desk-qa">
+      <div class="desk-header">
+        <span class="desk-name">🛡️ KIMI / DEEPSEEK · QA</span>
+        <span class="desk-state" id="desk-qa-state">IDLE</span>
+      </div>
+      <div class="desk-stage">
+        <div class="pixel-avatar avatar-qa" aria-hidden="true"></div>
+        <div class="pixel-monitor monitor-qa" aria-hidden="true">
+          <span class="pixel-loupe">🔎</span>
+          <span class="screen-line short"></span>
+        </div>
+        <div class="speech-bubble" id="bubble-qa">Sin diff por auditar</div>
+      </div>
+    </article>
+  </div>
+</section>
 
 <main class="mission-grid">
   <!-- Columna 1: CEREBRO -->
@@ -357,6 +500,7 @@
     applyPlannerTab();
     updateLiveBanner(s.activeRun);
     updateActiveColumn(s.activeRun);
+    updatePixelOffice(s);
     // Columna 2
     $('handoff-viewer').textContent = s.files.handoff ?? '02-HANDOFF.md aún no existe.';
     $('log-viewer').textContent = s.files.latestLog ?? 'Sin logs todavía.';
@@ -412,6 +556,119 @@
     const activeStep = activeRun.step || activeRun.action;
     if (activeStep === 'code' || activeStep === 'fix') $('col-coder').classList.add('live');
     else if (activeStep === 'qa') $('col-qa').classList.add('live');
+  }
+
+  /** Aplica el modo de vista: 'both' | 'pixel' | 'columns'. */
+  function applyViewMode(mode) {
+    const office = $('pixel-office');
+    const grid = document.querySelector('.mission-grid');
+    if (!office || !grid) return;
+    if (mode === 'pixel') {
+      office.classList.remove('hidden');
+      office.classList.add('full-view');
+      grid.classList.add('hidden');
+      return;
+    }
+    if (mode === 'columns') {
+      office.classList.add('hidden');
+      office.classList.remove('full-view');
+      grid.classList.remove('hidden');
+      return;
+    }
+    office.classList.remove('hidden', 'full-view');
+    grid.classList.remove('hidden');
+  }
+
+  /** Sincroniza la oficina Pixel Agents con el estado en vivo del pipeline. */
+  function updatePixelOffice(s) {
+    const office = $('pixel-office');
+    if (!office) return;
+    const st = s.status || {};
+    const run = s.activeRun;
+    const desks = [$('desk-planner'), $('desk-coder'), $('desk-qa')];
+    const badge = $('pixel-scene-badge');
+    const setDesk = (name, state, bubble) => {
+      $(`desk-${name}-state`).textContent = state;
+      $(`bubble-${name}`).textContent = bubble;
+    };
+
+    // Reset de estado: evita clases/textos residuales entre transiciones.
+    office.dataset.sceneState = 'idle';
+    office.classList.remove('celebrating');
+    for (const desk of desks) {
+      desk.classList.remove('designing', 'typing', 'inspecting', 'celebrating', 'alert');
+    }
+    badge.textContent = '🕹️ MODO: EN ESPERA';
+    badge.className = 'badge';
+    setDesk('planner', 'IDLE', 'Esperando épica o 01-PLAN.md…');
+    setDesk('coder', 'IDLE', 'Listo para codificar');
+    setDesk('qa', 'IDLE', 'Sin diff por auditar');
+
+    if (run?.running) {
+      const step = run.step || run.action || 'loop';
+      if (step === 'code' || step === 'fix') {
+        office.dataset.sceneState = step;
+        badge.textContent = `⚡ MODO: OPENCODE ${step === 'fix' ? 'CORRIGIENDO (FIX)' : 'PROGRAMANDO (CODE)'}`;
+        badge.className = 'badge warn';
+        $('desk-coder').classList.add('typing');
+        setDesk(
+          'coder',
+          'TYPING',
+          step === 'fix'
+            ? '🔧 Aplicando correcciones del QA…'
+            : `⌨️ Tecleando iteración ${run.iteration ?? 1} a toda velocidad…`
+        );
+        setDesk('planner', 'READY', '📐 01-PLAN.md entregado al Obrero');
+        setDesk('qa', 'WAITING', '⏳ Esperando 02-HANDOFF.md…');
+        return;
+      }
+      if (step === 'qa') {
+        office.dataset.sceneState = 'qa';
+        badge.textContent = '🔍 MODO: KIMI AUDITANDO QA';
+        badge.className = 'badge warn';
+        $('desk-qa').classList.add('inspecting');
+        setDesk('qa', 'INSPECTING', '🔎 Inspeccionando git diff con lupa…');
+        setDesk('coder', 'HANDOFF', '📦 02-HANDOFF.md enviado a QA');
+        setDesk('planner', 'READY', '📐 Criterios listos en 01-PLAN.md');
+        return;
+      }
+      office.dataset.sceneState = 'planning';
+      $('desk-planner').classList.add('designing');
+      setDesk('planner', 'STARTING', '🚀 Iniciando ciclo automático…');
+      return;
+    }
+
+    if (st.qaStatus === 'APPROVED') {
+      office.dataset.sceneState = 'approved';
+      office.classList.add('celebrating');
+      for (const desk of desks) desk.classList.add('celebrating');
+      badge.textContent = '🎉 MODO: APPROVED — ¡EQUIPO FESTEJANDO!';
+      badge.className = 'badge ok';
+      setDesk('planner', 'APPROVED', '🎯 Arquitectura validada al 100%');
+      setDesk('coder', 'APPROVED', '🙌 Build y tests en verde');
+      setDesk('qa', 'APPROVED', '✅ STATUS: APPROVED certificado');
+      return;
+    }
+    if (st.qaStatus === 'CHANGES_REQUIRED') {
+      office.dataset.sceneState = 'changes_required';
+      badge.textContent = '🚨 MODO: CHANGES REQUIRED';
+      badge.className = 'badge bad';
+      $('desk-qa').classList.add('alert');
+      setDesk('qa', 'ALERT', '🚨 Se requieren correcciones en el código');
+      $('desk-coder').classList.add('designing');
+      setDesk('coder', 'STANDBY', '🛠️ Listo para ejecutar paso fix');
+      setDesk('planner', 'READY', '📐 Plan vigente como referencia');
+      return;
+    }
+    if (Date.now() < planPulseUntil || (st.planExists && !st.handoffExists)) {
+      office.dataset.sceneState = 'planning';
+      badge.textContent = '🧠 MODO: ARGON DISEÑANDO PLAN';
+      badge.className = 'badge warn';
+      $('desk-planner').classList.add('designing');
+      setDesk('planner', 'DESIGNING', '✍️ Diseñando y afinando 01-PLAN.md…');
+      setDesk('coder', 'IDLE', '👀 Esperando señal para codificar');
+      setDesk('qa', 'IDLE', 'Sin diff por auditar');
+    }
   }
   function esc(t) { const d = document.createElement('span'); d.textContent = t ?? ''; return d.innerHTML; }
 
@@ -490,6 +747,7 @@
 
   // ---------- Eventos ----------
   let activeTab = 'plan';
+  let planPulseUntil = 0;
   document.querySelectorAll('.tab').forEach((tab) => {
     tab.addEventListener('click', () => {
       const scope = tab.closest('.column');
@@ -513,6 +771,7 @@
     const body = { dir: state.projectDir, content };
     const resp = await api('/api/plan', { method: 'POST', body: JSON.stringify(body) });
     if (!resp.ok) alert('Error guardando el plan: ' + (resp.error || ''));
+    else planPulseUntil = Date.now() + 4000;
     await refreshState();
   });
 
@@ -545,6 +804,7 @@
     await api('/api/settings', { method: 'POST', body: JSON.stringify({ qaEngine: e.target.value }) });
     await refreshState();
   });
+  $('view-mode-select').addEventListener('change', (e) => applyViewMode(e.target.value));
   $('auto-watch-toggle').addEventListener('change', async (e) => {
     await api('/api/settings', { method: 'POST', body: JSON.stringify({ autoWatchPlan: e.target.checked }) });
   });
@@ -598,6 +858,9 @@
       let event = {};
       try { event = JSON.parse(msg.data); } catch {}
       appendEvent(event.type, event.step ?? event.file ?? event.status ?? '');
+      if (event.type === 'plan_saved' || (event.type === 'pipeline_file_changed' && event.file === '01-PLAN.md')) {
+        planPulseUntil = Date.now() + 4000;
+      }
       if (['pipeline_file_changed', 'plan_saved', 'settings_updated', 'step_end', 'run_end', 'run_start'].includes(event.type)) {
         await refreshState();
       }
@@ -606,6 +869,7 @@
   }
 
   // ---------- Arranque ----------
+  applyViewMode('both');
   connectSSE();
   loadProjects();
   setInterval(refreshState, 7000); // refresco de respaldo por si el watcher falla
