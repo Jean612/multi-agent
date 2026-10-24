@@ -1,0 +1,14 @@
+---
+name: fix
+description: "Comando /fix del Pipeline Multi-Agente — Fase 2b: Corrige las observaciones de QA en .pipeline/03-QA-REPORT.md y actualiza .pipeline/02-HANDOFF.md"
+disable-model-invocation: true
+---
+
+<!-- Generado por scripts/sync-agent-commands.mjs desde commands/fix.md. No editar a mano. -->
+
+Activa y sigue las instrucciones de la skill `pipeline-code` en modo corrección de QA:
+1. Lee `.pipeline/03-QA-REPORT.md` y `.pipeline/01-PLAN.md`.
+2. Corrige cada uno de los hallazgos reportados en `.pipeline/03-QA-REPORT.md`.
+3. Ejecuta nuevamente los comandos de verificación/tests hasta que pasen en verde.
+4. Actualiza `.pipeline/02-HANDOFF.md` indicando cómo se resolvió cada observación.
+**Argumentos:** usa el texto que el usuario escribió después de `/fix`, si lo hay.

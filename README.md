@@ -41,6 +41,17 @@ También soporta flags no interactivos:
 * **Fase 3:** `/qa` (`qa`) → Audita el `git diff` y escribe `.pipeline/03-QA-REPORT.md`.
 * **Fase 4:** `/close` (`pipeline-close`) → Revisa el cierre, marca `[x] TASK-XX` en el roadmap y archiva en `.pipeline/archive/`.
 
+Los comandos están disponibles en todos los agentes (`./install.sh --mode multi` los enlaza):
+
+| Agente | Comandos | De dónde salen |
+|---|---|---|
+| Claude Code, OpenCode | `/epic` `/plan` `/auto` `/code` `/fix` `/qa` `/close` | `commands/*.md` |
+| Antigravity (IDE y `agy`) | `/epic` `/plan` `/auto` `/code` `/fix` `/qa` `/close` | skills-comando en `agent-commands/skills/` |
+| Kimi Code | `/epic` `/pipeline-plan` `/pipeline-auto` `/code` `/fix` `/qa` `/close` | skills-comando (Kimi ya trae `/plan` y `/auto` propios: plan mode y auto mode) |
+| Gemini CLI | `/epic` `/plan` `/auto` `/code` `/fix` `/qa` `/close` | `agent-commands/gemini/*.toml` |
+
+`commands/*.md` es la única fuente: si editas un comando, regenera las versiones de los demás agentes con `node scripts/sync-agent-commands.mjs` (`npm test` falla si quedan desincronizadas).
+
 ### Opción B: Orquestador 100% Automático (`pipeline-auto` / `/auto` / `pipeline-run`)
 Hablas únicamente con el Cerebro (Antigravity usando la skill `pipeline-auto`, o Claude Code usando el comando `/auto`), o ejecutas directo por CLI:
 ```bash

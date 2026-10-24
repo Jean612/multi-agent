@@ -9,6 +9,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SKILLS_SRC="$SCRIPT_DIR/skills"
 COMMANDS_SRC="$SCRIPT_DIR/commands"
+AGENT_COMMANDS_SRC="$SCRIPT_DIR/agent-commands"
 BIN_SRC="$SCRIPT_DIR/bin"
 
 USER_HOME="${HOME:-$HOME}"
@@ -74,6 +75,31 @@ safe_link() {
     mkdir -p "$(dirname "$dest")"
     ln -sfn "$src" "$dest"
   fi
+}
+
+# Enlaza todas las skills del pipeline en un directorio de skills.
+link_all_skills() {
+  local dest_dir="$1"
+  for skill_path in "$SKILLS_SRC"/*; do
+    if [ -d "$skill_path" ]; then
+      safe_link "$skill_path" "$dest_dir/$(basename "$skill_path")"
+    fi
+  done
+}
+
+# Enlaza las skills-comando generadas (agent-commands/skills/<cmd>) en un directorio de skills,
+# salvo los nombres pasados como excluidos (comandos internos del agente con el mismo nombre).
+link_command_skills() {
+  local dest_dir="$1"
+  shift
+  local excluded=" $* "
+  for cmd_path in "$AGENT_COMMANDS_SRC/skills"/*; do
+    local cmd_name
+    cmd_name="$(basename "$cmd_path")"
+    if [ -d "$cmd_path" ] && [[ "$excluded" != *" $cmd_name "* ]]; then
+      safe_link "$cmd_path" "$dest_dir/$cmd_name"
+    fi
+  done
 }
 
 # ------------------------------------------------------------------------------
@@ -158,23 +184,22 @@ fi
 # ------------------------------------------------------------------------------
 if [ "$MODE" = "multi" ]; then
   echo ""
-  echo "📦 Enlazando configuración para Antigravity, OpenCode y Kimi Code..."
+  echo "📦 Enlazando configuración para Antigravity, OpenCode, Kimi Code y Gemini CLI..."
 
   # Directorios dinámicos basados en $USER_HOME
   AGY_SKILLS="$USER_HOME/.gemini/config/skills"
   OPENCODE_SKILLS="$USER_HOME/.config/opencode/skills"
   OPENCODE_COMMANDS="$USER_HOME/.config/opencode/commands"
   KIMI_SKILLS="$USER_HOME/.kimi-code/skills"
+  GEMINI_COMMANDS="$USER_HOME/.gemini/commands"
   AGENTS_SHARED_SKILLS="$USER_HOME/.agents/skills"
 
-  # Antigravity
+  # Antigravity: cada skill es un comando /<nombre>, así que además de las skills del
+  # pipeline se enlazan las skills-comando (/plan, /code, /fix, /close, /epic, /auto; /qa es la skill qa).
   mkdir -p "$AGY_SKILLS"
-  for s in pipeline-epic pipeline-plan pipeline-close pipeline-auto pipeline-code qa; do
-    if [ -d "$SKILLS_SRC/$s" ]; then
-      safe_link "$SKILLS_SRC/$s" "$AGY_SKILLS/$s"
-    fi
-  done
-  echo "✅ Antigravity skills (incluidas pipeline-code y qa) enlazadas ($AGY_SKILLS)"
+  link_all_skills "$AGY_SKILLS"
+  link_command_skills "$AGY_SKILLS"
+  echo "✅ Antigravity: skills y comandos /epic /plan /auto /code /fix /qa /close enlazados ($AGY_SKILLS)"
 
   # OpenCode (skills y slash commands)
   mkdir -p "$OPENCODE_SKILLS" "$OPENCODE_COMMANDS"
@@ -187,14 +212,21 @@ if [ "$MODE" = "multi" ]; then
   done
   echo "✅ OpenCode skills y comandos enlazados ($OPENCODE_SKILLS)"
 
-  # Kimi Code
+  # Kimi Code: igual que Antigravity, pero /plan y /auto son comandos internos de Kimi
+  # (plan mode y auto mode), así que ahí se usan /pipeline-plan y /pipeline-auto.
   mkdir -p "$KIMI_SKILLS"
-  for s in qa pipeline-plan pipeline-code; do
-    if [ -d "$SKILLS_SRC/$s" ]; then
-      safe_link "$SKILLS_SRC/$s" "$KIMI_SKILLS/$s"
+  link_all_skills "$KIMI_SKILLS"
+  link_command_skills "$KIMI_SKILLS" plan auto
+  echo "✅ Kimi Code: skills y comandos /epic /code /fix /qa /close enlazados; /plan y /auto son /pipeline-plan y /pipeline-auto ($KIMI_SKILLS)"
+
+  # Gemini CLI: comandos TOML en ~/.gemini/commands (las skills las toma de ~/.agents/skills).
+  mkdir -p "$GEMINI_COMMANDS"
+  for toml_file in "$AGENT_COMMANDS_SRC/gemini"/*.toml; do
+    if [ -f "$toml_file" ]; then
+      safe_link "$toml_file" "$GEMINI_COMMANDS/$(basename "$toml_file")"
     fi
   done
-  echo "✅ Kimi Code skills (qa, pipeline-plan, pipeline-code) enlazadas ($KIMI_SKILLS)"
+  echo "✅ Gemini CLI: comandos /epic /plan /auto /code /fix /qa /close enlazados ($GEMINI_COMMANDS)"
 
   # Estándar universal compartido ~/.agents/skills
   mkdir -p "$AGENTS_SHARED_SKILLS"

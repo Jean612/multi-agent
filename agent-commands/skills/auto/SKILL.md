@@ -1,0 +1,26 @@
+---
+name: auto
+description: "Comando /auto del Pipeline Multi-Agente — Modo 100% Automático (Opción B): Crea .pipeline/01-PLAN.md, pregunta agente y modelo para coder y QA, ejecuta pipeline-run loop por CLI y cierra la tarea con pipeline-close"
+disable-model-invocation: true
+---
+
+<!-- Generado por scripts/sync-agent-commands.mjs desde commands/auto.md. No editar a mano. -->
+
+Activa y sigue las instrucciones de la skill `pipeline-auto`:
+1. **Paso 0 (Telemetría Temprana):** Escribe inmediatamente `.pipeline/runtime.json` con `{"running":true,"action":"plan","step":"plan","iteration":1,"task":"...","updatedAt":"..."}` antes de explorar el código.
+2. **Paso 1 (Elegir agentes y modelos):** Si `los argumentos del comando` o el pedido ya indican agente y modelo de cada rol, en lenguaje natural o con flags, tradúcelos a `--coder`, `--coder-model`, `--qa` y `--qa-model`. Si falta algo, **pregúntalo antes del plan**: primero los agentes (`opencode`, `kimi`, `claude`, `gemini`, `antigravity`) y después los modelos, ofreciendo los alias de `pipeline-run models`. Sugiere por defecto `opencode` + `kimi`. **No preguntes el modelo de Kimi: siempre usa `kimi-code/k3`.**
+
+   | Pedido | Flags |
+   |---|---|
+   | Claude Sonnet 5.5 para code | `--coder claude --coder-model sonnet` |
+   | Haiku 5.5 para QA | `--qa claude --qa-model haiku` |
+   | Kimi Code 3 para code | `--coder kimi` |
+   | OpenCode GLM para QA | `--qa opencode --qa-model glm` |
+   | Antigravity Argon (high) para code | `--coder antigravity --coder-model "argon high"` |
+   | Gemini 3.8 Flash vía Antigravity para QA | `--qa antigravity --qa-model flash` |
+
+   Si coder y QA son el mismo agente, avisa que la auditoría pierde independencia aunque los modelos sean distintos.
+3. **Paso 2 (Plan):** Si existe `.pipeline/ROADMAP.md`, selecciona la siguiente tarea pendiente (`[ ] TASK-XX`) o la indicada en `los argumentos del comando`. Investiga el repositorio y genera `.pipeline/01-PLAN.md` siguiendo la plantilla de `pipeline-plan`. El plan y el cierre los hace siempre la sesión donde se lanzó `/auto` (Claude Code, Antigravity IDE o `agy`).
+4. **Paso 3 (Bucle Automático CLI):** Ejecuta en terminal `pipeline-run loop . --max-retries 3 --coder <coder> --coder-model <modelo> --qa <qa> --qa-model <modelo>` (o `node ~/.local/bin/pipeline-run loop . ...`; omite el modelo de Kimi). Si QA falla por cuota, reintenta con el coder; usa `--qa-fallback <agente|none>` y `--qa-fallback-model <modelo>` para configurarlo.
+5. **Paso 4 (Cierre y Resumen Ejecutivo):** Cuando el loop apruebe (`APPROVED`), el control vuelve a la sesión orquestadora para `pipeline-close` (actualiza `.pipeline/ROADMAP.md` con `[x]`, exporta a la Wiki si está configurada, realiza commit con trailers `Co-Authored-By:` **con agente y modelo de quienes realmente participaron** y archiva en `.pipeline/archive/`). Entrega la ficha de **Resumen Ejecutivo del Pipeline** con agente/modelo por rol, sacados del historial de `pipeline-run`.
+**Argumentos:** usa el texto que el usuario escribió después de `/auto`, si lo hay.

@@ -9,7 +9,7 @@
     "pipeline-ui": "./bin/pipeline-ui.mjs"
   },
   "scripts": {
-    "test": "node --test tests/pipeline-status.test.mjs tests/pipeline-run.test.mjs tests/pipeline-ui.test.mjs tests/office.test.mjs",
+    "test": "node --test tests/pipeline-status.test.mjs tests/pipeline-run.test.mjs tests/pipeline-ui.test.mjs tests/office.test.mjs tests/agent-commands.test.mjs",
     "status": "node ./bin/pipeline-status.mjs",
     "run": "node ./bin/pipeline-run.mjs",
     "ui": "node ./bin/pipeline-ui.mjs"
