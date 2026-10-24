@@ -19,9 +19,9 @@ Tu trabajo es **ahorrarle búsqueda e incertidumbre** a los otros dos agentes. C
    - Usa tus herramientas de búsqueda (`grep_search`, `find_by_name`, `read_file`) para entender la arquitectura actual del proyecto donde se solicita el cambio.
    - Si algún requisito del usuario es ambiguo, hazle las preguntas necesarias antes de escribir el plan.
 
-2. **Preparar el Buzón `.pipeline/`:**
+2. **Preparar el Buzón `.pipeline/` (Archivado sin borrar historial):**
    - Asegúrate de que exista la carpeta `.pipeline/` en la raíz del proyecto actual.
-   - Si existen archivos `.pipeline/02-HANDOFF.md` o `.pipeline/03-QA-REPORT.md` de una tarea anterior y el usuario está pidiendo una tarea **nueva**, límpialos o archívalos para no confundir a OpenCode ni a Kimi.
+   - Si existen archivos `01-PLAN.md`, `02-HANDOFF.md` o `03-QA-REPORT.md` de una tarea anterior y el usuario está pidiendo una tarea **nueva**, **NUNCA los borres con `rm`**: muévelos a `.pipeline/archive/YYYYMMDD-HHMM_<slug-tarea-anterior>/` para conservar el historial local intacto y dejar limpio `.pipeline/` para la tarea actual.
 
 3. **Escribir `.pipeline/01-PLAN.md`:**
    - Crea el archivo `.pipeline/01-PLAN.md` siguiendo estrictamente esta estructura:
