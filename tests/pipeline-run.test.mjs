@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 import { execFile as execFileCallback } from 'node:child_process';
 import { promisify } from 'node:util';
 import { analyzePipeline } from '../bin/pipeline-status.mjs';
-import { AGENTS, buildStepCommand, isQuotaFailure, resolveBins, runPipelineLoop, runStep } from '../bin/pipeline-run.mjs';
+import { AGENTS, buildStepCommand, isQuotaFailure, resolveBins, resolveModel, runPipelineLoop, runStep } from '../bin/pipeline-run.mjs';
 
 const execFile = promisify(execFileCallback);
 
@@ -56,9 +56,10 @@ test('buildStepCommand genera binarios y argumentos exactos para fix (OpenCode)'
 test('buildStepCommand genera binarios y argumentos exactos para qa (Kimi)', () => {
   const { command, args } = buildStepCommand('qa');
   assert.equal(command, process.env.KIMI_BIN || path.join(homedir(), '.kimi-code', 'bin', 'kimi'));
-  assert.equal(args[0], '-p');
-  assert.match(args[1], /skill qa:.*03-QA-REPORT\.md.*(APPROVED|CHANGES_REQUIRED)/);
-  assert.deepEqual(args.slice(2), ['-c']);
+  assert.deepEqual(args.slice(0, 3), ['--auto', '-m', 'kimi-code/k3']);
+  assert.equal(args[3], '-p');
+  assert.match(args[4], /skill qa:.*03-QA-REPORT\.md.*(APPROVED|CHANGES_REQUIRED)/);
+  assert.deepEqual(args.slice(5), ['-c']);
 });
 
 test('buildStepCommand respeta overrides y variables de entorno OPENCODE_BIN/KIMI_BIN', () => {
@@ -336,22 +337,41 @@ const FAKE_BINS = {
   kimiBin: '/bin/kimi',
   claudeBin: '/bin/claude',
   geminiBin: '/bin/gemini',
+  agyBin: '/bin/agy',
 };
 
+test('resolveModel traduce alias y respeta ids exactos', () => {
+  assert.equal(resolveModel('claude', 'claude sonnet 5.5'), 'claude-sonnet-5-5');
+  assert.equal(resolveModel('claude', 'Haiku'), 'claude-haiku-5-5');
+  assert.equal(resolveModel('claude', 'claude-opus-4-1'), 'claude-opus-4-1');
+  assert.equal(resolveModel('claude', 'claude-sonnet-5-5-20260301'), 'claude-sonnet-5-5-20260301');
+  assert.equal(resolveModel('opencode', 'glm'), 'opencode/glm-5.3-flash-free');
+  assert.equal(resolveModel('opencode', 'nemotron ultra'), 'opencode/nemotron-3-ultra-free');
+  assert.equal(resolveModel('opencode', 'opencode/beam-free'), 'opencode/beam-free');
+  assert.equal(resolveModel('kimi', null), 'kimi-code/k3');
+  assert.equal(resolveModel('kimi', 'kimi code 3'), 'kimi-code/k3');
+  assert.equal(resolveModel('antigravity', 'argon high'), 'gemini-4-argon-high');
+  assert.equal(resolveModel('antigravity', 'flash low'), 'gemini-3.8-flash-low');
+  assert.equal(resolveModel('antigravity', 'gpt-oss'), 'gpt-oss-120b-medium');
+  assert.equal(resolveModel('gemini', 'gemini-x'), 'gemini-x');
+  assert.equal(resolveModel('opencode', null, { role: 'coder' }), null);
+  assert.equal(resolveModel('opencode', null, { role: 'qa' }), 'opencode/deepseek-v4.1-flash-free');
+});
+
 test('buildStepCommand usa el coder elegido en code y fix (kimi, claude, gemini)', () => {
-  assert.deepEqual(AGENTS, ['opencode', 'kimi', 'claude', 'gemini']);
+  assert.deepEqual(AGENTS, ['opencode', 'kimi', 'claude', 'gemini', 'antigravity']);
 
   const kimi = buildStepCommand('code', { ...FAKE_BINS, coder: 'kimi' });
   assert.equal(kimi.command, '/bin/kimi');
   assert.equal(kimi.agent, 'kimi');
-  assert.deepEqual([kimi.args[0], kimi.args[1], kimi.args.at(-1)], ['--auto', '-p', '-c']);
-  assert.match(kimi.args[2], /skill pipeline-code:/);
+  assert.deepEqual([kimi.args[0], kimi.args[1], kimi.args[2], kimi.args.at(-1)], ['--auto', '-m', 'kimi-code/k3', '-c']);
+  assert.match(kimi.args[4], /skill pipeline-code:/);
 
   const claude = buildStepCommand('fix', { ...FAKE_BINS, coder: 'claude', coderModel: 'sonnet' });
   assert.equal(claude.command, '/bin/claude');
   assert.equal(claude.args[0], '-p');
   assert.match(claude.args[1], /pipeline-code en modo corrección/);
-  assert.deepEqual(claude.args.slice(2), ['--permission-mode', 'bypassPermissions', '--model', 'sonnet']);
+  assert.deepEqual(claude.args.slice(2), ['--permission-mode', 'bypassPermissions', '--model', 'claude-sonnet-5-5']);
   assert.ok(!claude.args.includes('-c'), 'claude no debe continuar la sesión del orquestador');
 
   const gemini = buildStepCommand('code', { ...FAKE_BINS, coder: 'gemini' });
@@ -362,18 +382,38 @@ test('buildStepCommand usa el coder elegido en code y fix (kimi, claude, gemini)
   assert.throws(() => buildStepCommand('code', { ...FAKE_BINS, coder: 'copilot' }), /Agente desconocido/);
 });
 
-test('buildStepCommand usa el QA elegido; qaModel solo aplica a OpenCode', () => {
-  const claude = buildStepCommand('qa', { ...FAKE_BINS, qaEngine: 'claude', qaModel: 'opencode/deepseek-v4.1-flash-free' });
+test('buildStepCommand aplica el modelo de QA a cualquier agente', () => {
+  const claude = buildStepCommand('qa', { ...FAKE_BINS, qaEngine: 'claude', qaModel: 'haiku' });
   assert.equal(claude.command, '/bin/claude');
-  assert.match(claude.args[1], /skill qa:/);
-  assert.ok(!claude.args.includes('--model'), 'el modelo de OpenCode no se pasa a Claude');
+  assert.equal(claude.model, 'claude-haiku-5-5');
+  assert.ok(claude.args.includes('--model'));
+  assert.ok(claude.args.includes('claude-haiku-5-5'));
+
+  const antigravity = buildStepCommand('qa', { ...FAKE_BINS, qaEngine: 'antigravity', qaModel: 'flash' });
+  assert.equal(antigravity.command, '/bin/agy');
+  assert.equal(antigravity.model, 'gemini-3.8-flash-medium');
+  assert.ok(antigravity.args.includes('--model'));
+  assert.ok(antigravity.args.includes('gemini-3.8-flash-medium'));
+  assert.ok(antigravity.args.includes('--dangerously-skip-permissions'));
+  assert.ok(!antigravity.args.includes('-c'));
+
+  const kimi = buildStepCommand('qa', { ...FAKE_BINS, qaEngine: 'kimi' });
+  assert.equal(kimi.args[0], '--auto');
+  assert.deepEqual(kimi.args.slice(1, 3), ['-m', 'kimi-code/k3']);
+  assert.equal(kimi.args.at(-1), '-c');
 
   const gemini = buildStepCommand('qa', { ...FAKE_BINS, qaEngine: 'gemini' });
   assert.equal(gemini.command, '/bin/gemini');
   assert.match(gemini.args.at(-1), /skill qa:/);
+});
 
-  const kimi = buildStepCommand('qa', { ...FAKE_BINS, qaEngine: 'kimi', qaModel: 'x/y' });
-  assert.deepEqual([kimi.args[0], kimi.args[2]], ['-p', '-c'], 'Kimi como QA conserva su invocación histórica');
+test('compatibilidad: qaModel opencode/... con QA no-OpenCode pasa al fallback', () => {
+  const bins = resolveBins({ ...FAKE_BINS, qaEngine: 'kimi', qaModel: 'opencode/glm-5.3-flash-free' });
+  assert.equal(bins.qaModel, 'kimi-code/k3');
+  assert.equal(bins.qaFallbackModel, 'opencode/glm-5.3-flash-free');
+  const claude = buildStepCommand('qa', { ...FAKE_BINS, qaEngine: 'claude', qaModel: 'opencode/deepseek-v4.1-flash-free' });
+  assert.equal(claude.model, null);
+  assert.ok(!claude.args.includes('--model'));
 });
 
 test('resolveBins: el fallback de QA es el coder salvo que coincida con el QA o sea none', () => {
@@ -454,6 +494,38 @@ test('runPipelineLoop corre cada paso con el agente de su rol y lo registra en e
   }
 });
 
+test('runPipelineLoop registra agente y modelo por paso', async () => {
+  const projectDir = await makeProject({ '01-PLAN.md': '# Plan\n- **Tarea:** Modelos\n' });
+  try {
+    const seen = [];
+    const result = await runPipelineLoop({
+      projectDir,
+      ...FAKE_BINS,
+      coder: 'antigravity',
+      coderModel: 'argon',
+      qaEngine: 'claude',
+      qaModel: 'haiku',
+      runner: async ({ step, model }) => {
+        seen.push({ step, model });
+        const runtime = JSON.parse(await fs.readFile(path.join(projectDir, '.pipeline', 'runtime.json'), 'utf8'));
+        assert.equal(runtime.coderModel, 'gemini-4-argon-medium');
+        assert.equal(runtime.qaModel, 'claude-haiku-5-5');
+        if (step === 'code') await writePipelineFile(projectDir, '02-HANDOFF.md', '# Handoff\n');
+        if (step === 'qa') await writePipelineFile(projectDir, '03-QA-REPORT.md', '# QA\nSTATUS: APPROVED\n');
+        return { exitCode: 0 };
+      },
+    });
+    assert.equal(result.status, 'APPROVED');
+    assert.deepEqual(seen, [
+      { step: 'code', model: 'gemini-4-argon-medium' },
+      { step: 'qa', model: 'claude-haiku-5-5' },
+    ]);
+    assert.deepEqual(result.history.map((h) => h.model), ['gemini-4-argon-medium', 'claude-haiku-5-5']);
+  } finally {
+    await cleanup(projectDir);
+  }
+});
+
 test('runPipelineLoop con un agente desconocido devuelve STALLED sin correr pasos', async () => {
   const projectDir = await makeProject({ '01-PLAN.md': '# Plan\n' });
   try {
@@ -492,4 +564,17 @@ test('CLI: --coder/--qa válidos se reflejan en el dry-run y uno inválido sale 
   } finally {
     await cleanup(projectDir);
   }
+});
+
+test('CLI: pipeline-run models --json lista el catálogo y --coder antigravity es válido', async () => {
+  const { stdout: catalogOutput } = await execFile(process.execPath, [CLI_PATH, 'models', '--json']);
+  const catalog = JSON.parse(catalogOutput);
+  assert.deepEqual(Object.keys(catalog), ['opencode', 'kimi', 'claude', 'antigravity', 'gemini']);
+
+  const { stdout } = await execFile(process.execPath, [
+    CLI_PATH, 'code', '.', '--dry-run', '--json', '--coder', 'antigravity', '--coder-model', 'argon high',
+  ]);
+  const parsed = JSON.parse(stdout);
+  assert.equal(parsed.agent, 'antigravity');
+  assert.equal(parsed.model, 'gemini-4-argon-high');
 });

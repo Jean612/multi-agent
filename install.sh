@@ -169,12 +169,12 @@ if [ "$MODE" = "multi" ]; then
 
   # Antigravity
   mkdir -p "$AGY_SKILLS"
-  for s in pipeline-epic pipeline-plan pipeline-close pipeline-auto; do
+  for s in pipeline-epic pipeline-plan pipeline-close pipeline-auto pipeline-code qa; do
     if [ -d "$SKILLS_SRC/$s" ]; then
       safe_link "$SKILLS_SRC/$s" "$AGY_SKILLS/$s"
     fi
   done
-  echo "✅ Antigravity skills enlazadas ($AGY_SKILLS)"
+  echo "✅ Antigravity skills (incluidas pipeline-code y qa) enlazadas ($AGY_SKILLS)"
 
   # OpenCode (skills y slash commands)
   mkdir -p "$OPENCODE_SKILLS" "$OPENCODE_COMMANDS"

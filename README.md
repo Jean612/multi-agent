@@ -45,17 +45,21 @@ También soporta flags no interactivos:
 Hablas únicamente con el Cerebro (Antigravity usando la skill `pipeline-auto`, o Claude Code usando el comando `/auto`), o ejecutas directo por CLI:
 ```bash
 pipeline-run loop . --max-retries 3 --coder opencode --qa kimi
+pipeline-run loop . --coder claude --coder-model sonnet --qa claude --qa-model haiku
 ```
-`/auto` te pregunta qué agente usar como **coder** (`code`/`fix`) y cuál como **QA**, antes de lanzar el loop. Puede ser `opencode`, `kimi`, `claude` o `gemini`, y por defecto se usan OpenCode + Kimi. Sirve, por ejemplo, para seguir trabajando cuando un agente agotó su cuota (`--coder kimi` o `--coder claude`).
+`/auto` te pregunta agente y modelo para **coder** (`code`/`fix`) y **QA** antes de lanzar el loop. Los agentes disponibles son `opencode`, `kimi`, `claude`, `gemini` y `antigravity`; por defecto se usan OpenCode + Kimi. Kimi usa siempre `kimi-code/k3`, sin pregunta de modelo.
 
 | Flag | Qué hace |
 |---|---|
 | `--coder <agente>` | Agente para `code` y `fix` (default `opencode`, o `CODER_AGENT`). |
 | `--qa <agente>` | Agente de auditoría (default `kimi`, o `QA_ENGINE`; alias `--qa-engine`). |
 | `--qa-fallback <agente\|none>` | Reintento si el QA falla. Por defecto es el coder, si es distinto del QA. |
-| `--coder-model <m>` / `--qa-model <m>` | Modelo opcional. `--qa-model` solo aplica a OpenCode como QA (default `deepseek-v4.1-flash-free`). |
+| `--coder-model <m>` / `--qa-model <m>` | Modelo o alias para cada rol. OpenCode QA usa `deepseek` por defecto. |
+| `--qa-fallback-model <m>` | Modelo independiente para el fallback de QA (o `QA_FALLBACK_MODEL`). |
 
-Todos los agentes corren en modo autónomo (`--auto`, `bypassPermissions` o `yolo`, según el CLI). Los binarios se resuelven con `OPENCODE_BIN`, `KIMI_BIN`, `CLAUDE_BIN` y `GEMINI_BIN`, o desde el PATH.
+`pipeline-run models` (o `pipeline-run models --json`) lista sin coste los alias: OpenCode `deepseek`, `glm`, `mimo`, `nemotron-ultra`, `nemotron-lightning`, `nemotron-vl`, `beam`, `flint`; Claude `haiku`, `sonnet`, `opus`; Antigravity `argon`, `flash`, `opus`, `sonnet`, `gpt-oss` (con niveles `low`/`medium`/`high`). Gemini acepta un id libre.
+
+Todos los agentes corren en modo autónomo (`--auto`, `bypassPermissions`, `yolo` o `--dangerously-skip-permissions`, según el CLI). Los binarios se resuelven con `OPENCODE_BIN`, `KIMI_BIN`, `CLAUDE_BIN`, `GEMINI_BIN` y `AGY_BIN`, o desde el PATH.
 
 ### Opción C: Mission Control GUI + Oficina Virtual "Pixel Agents" (`pipeline-ui`)
 Levanta el monitor web en tiempo real (Server-Sent Events + File Watcher sobre `.pipeline/runtime.json`) con vista de 3 columnas y oficina animada estilo **Pixel Agents**:

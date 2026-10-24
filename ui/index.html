@@ -304,6 +304,7 @@
       <option value="kimi">kimi</option>
       <option value="claude">claude</option>
       <option value="gemini">gemini</option>
+      <option value="antigravity">antigravity</option>
     </select>
   </div>
   <div class="hdr-field">
@@ -313,6 +314,7 @@
       <option value="opencode">opencode (DeepSeek Free directo)</option>
       <option value="claude">claude</option>
       <option value="gemini">gemini</option>
+      <option value="antigravity">antigravity</option>
     </select>
   </div>
   <div class="hdr-field">
@@ -499,7 +501,7 @@
     $('qa-report-viewer').textContent = qaText;
     updateSemaphore(st.qaStatus, s.activeRun);
     $('engine-note').textContent =
-      `Coder: ${s.bins?.coder ?? 'opencode'} · Motor QA: ${s.bins?.qaEngine ?? 'kimi'} · Fallback QA: ${s.bins?.qaFallback ?? 'ninguno'}`;
+      `Coder: ${s.bins?.coder ?? 'opencode'}/${s.bins?.coderModel ?? 'default'} · QA: ${s.bins?.qaEngine ?? 'kimi'}/${s.bins?.qaModel ?? 'default'} · Fallback QA: ${s.bins?.qaFallback ?? 'ninguno'}`;
     if (s.bins?.coder) $('coder-select').value = s.bins.coder;
     if (s.bins?.qaEngine) $('qa-engine-select').value = s.bins.qaEngine;
     // Git drawer

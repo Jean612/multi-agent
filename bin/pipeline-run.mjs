@@ -2,12 +2,12 @@
 /**
  * pipeline-run.mjs — Orquestador automático (Opción B) del flujo Multi-Agente.
  * Ejecuta de forma headless al coder (code/fix) y al QA elegidos —OpenCode, Kimi Code,
- * Claude Code o Gemini CLI; por defecto OpenCode + Kimi—, iterando hasta
+ * Claude Code, Gemini CLI o Antigravity; por defecto OpenCode + Kimi—, iterando hasta
  * `STATUS: APPROVED` en .pipeline/03-QA-REPORT.md o hasta --max-retries.
  * 100% Node.js nativo, sin dependencias externas.
  *
- * Uso: pipeline-run <loop|code|fix|qa> [dir] [--coder <agente>] [--qa <agente>] [--qa-fallback <agente|none>]
- *        [--coder-model <m>] [--qa-model <m>] [--max-retries N] [--dry-run] [--json]
+ * Uso: pipeline-run <loop|code|fix|qa|models> [dir] [--coder <agente>] [--qa <agente>] [--qa-fallback <agente|none>]
+ *        [--coder-model <m>] [--qa-model <m>] [--qa-fallback-model <m>] [--max-retries N] [--dry-run] [--json]
  */
 import { promises as fs, realpathSync } from 'node:fs';
 import { homedir } from 'node:os';
@@ -16,17 +16,49 @@ import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
 import { analyzePipeline } from './pipeline-status.mjs';
 
-/** Binarios por defecto (sobreescribibles con OPENCODE_BIN, KIMI_BIN, CLAUDE_BIN y GEMINI_BIN). */
+/** Binarios por defecto (sobreescribibles con las variables *_BIN correspondientes). */
 const FALLBACK_OPENCODE_BIN = path.join(homedir(), '.opencode', 'bin', 'opencode');
 const FALLBACK_KIMI_BIN = path.join(homedir(), '.kimi-code', 'bin', 'kimi');
-const DEFAULT_FALLBACK_QA_MODEL = 'opencode/deepseek-v4.1-flash-free';
+const FALLBACK_AGY_BIN = path.join(homedir(), '.local', 'bin', 'agy');
 
 const VALID_STEPS = new Set(['code', 'fix', 'qa']);
 
 /** Agentes que pueden ocupar el rol de coder (code/fix) o de QA. */
-export const AGENTS = ['opencode', 'kimi', 'claude', 'gemini'];
+export const AGENTS = ['opencode', 'kimi', 'claude', 'gemini', 'antigravity'];
 const DEFAULT_CODER = 'opencode';
 const DEFAULT_QA = 'kimi';
+
+/** Alias de modelos por agente → id exacto que acepta su CLI. */
+export const MODEL_CATALOG = {
+  opencode: {
+    default: null,
+    qaDefault: 'opencode/deepseek-v4.1-flash-free',
+    aliases: {
+      deepseek: 'opencode/deepseek-v4.1-flash-free',
+      glm: 'opencode/glm-5.3-flash-free',
+      mimo: 'opencode/mimo-v2.6-flash-free',
+      'nemotron-ultra': 'opencode/nemotron-3-ultra-free',
+      'nemotron-lightning': 'opencode/nemotron-3.5-lightning-free',
+      'nemotron-vl': 'opencode/nemotron-3.5-super-vl-free',
+      nemotron: 'opencode/nemotron-3.5-lightning-free',
+      beam: 'opencode/beam-free',
+      flint: 'opencode/flint-40b-free',
+    },
+  },
+  kimi: { default: 'kimi-code/k3', aliases: { k3: 'kimi-code/k3', 'k3.1-pro': 'kimi-code/k3.1-pro', '3': 'kimi-code/k3' } },
+  claude: { default: null, aliases: { haiku: 'claude-haiku-5-5', sonnet: 'claude-sonnet-5-5', opus: 'claude-opus-5-5' } },
+  antigravity: {
+    default: null,
+    aliases: {
+      argon: 'gemini-4-argon-medium',
+      flash: 'gemini-3.8-flash-medium',
+      opus: 'claude-opus-5-5-medium',
+      sonnet: 'claude-sonnet-5-5-medium',
+      'gpt-oss': 'gpt-oss-120b-medium',
+    },
+  },
+  gemini: { default: null, aliases: {} },
+};
 
 const CODE_PROMPT = 'Activa la skill pipeline-code: lee .pipeline/01-PLAN.md, implementa todos los pasos, ejecuta los comandos de verificación y escribe .pipeline/02-HANDOFF.md';
 const FIX_PROMPT = 'Activa la skill pipeline-code en modo corrección: lee .pipeline/03-QA-REPORT.md y .pipeline/01-PLAN.md, corrige todos los hallazgos, ejecuta las verificaciones y actualiza .pipeline/02-HANDOFF.md';
@@ -62,11 +94,58 @@ export function isValidAgent(agent) {
 }
 
 /**
- * Resuelve los binarios y agentes a usar: options > variable de entorno > default.
+ * Id de modelo completo (familia + versión, p. ej. `claude-opus-4-1`, `gemini-3.8-flash-low`):
+ * se respeta tal cual aunque contenga un alias. Sin número no cuenta (`gpt-oss` es un alias).
+ */
+const FULL_MODEL_ID = /^(claude|gemini|gpt|kimi)-.*\d/;
+
+/**
+ * Traduce un alias de modelo ("sonnet 5.5", "glm", "argon high") al id exacto del CLI del agente.
+ * Pura: no invoca ningún CLI. Un id completo o desconocido se devuelve tal cual, para no
+ * cambiar en silencio el modelo pedido (p. ej. `claude-opus-4-1` no se convierte en `claude-opus-5-5`).
+ * @param {string} agent Uno de AGENTS.
+ * @param {string|null|undefined} input Alias o id pedido por el usuario.
+ * @param {{role?: 'coder'|'qa'}} [opts] Rol, para el default de OpenCode como QA.
+ * @returns {string|null} Id del modelo, o null para usar el default del propio CLI.
+ */
+export function resolveModel(agent, input, { role = 'coder' } = {}) {
+  const catalog = MODEL_CATALOG[agent];
+  if (!catalog) return input || null;
+  if (input === null || input === undefined || String(input).trim() === '') {
+    return agent === 'opencode' && role !== 'coder' ? catalog.qaDefault : catalog.default;
+  }
+  const trimmed = String(input).trim();
+  const normalized = trimmed.toLowerCase();
+  if (
+    normalized.includes('/') ||
+    FULL_MODEL_ID.test(normalized) ||
+    Object.values(catalog.aliases).includes(trimmed)
+  ) {
+    return trimmed;
+  }
+  if (!Object.hasOwn(catalog.aliases, normalized) && /^(?:claude|gemini|gpt|kimi)-|^opencode\//.test(normalized)) {
+    return trimmed;
+  }
+
+  const effort = agent === 'antigravity'
+    ? normalized.match(/(?:^|[\s-])(low|medium|high)(?:$|[\s-])/)?.[1]
+    : null;
+  const compact = normalized.replace(/[-\s.]/g, '');
+  const alias = Object.keys(catalog.aliases)
+    .sort((a, b) => b.length - a.length)
+    .find((key) => normalized.includes(key) || compact.includes(key.replace(/[-\s.]/g, '')));
+  if (!alias) return trimmed;
+  const resolved = catalog.aliases[alias];
+  return effort ? resolved.replace(/-medium$/, `-${effort}`) : resolved;
+}
+
+/**
+ * Resuelve los binarios, agentes y modelos a usar: options > variable de entorno > default.
  * `qaEngine` es el agente de QA (se mantiene el nombre por compatibilidad con la GUI y runtime.json).
  * `qaFallback` es el agente de respaldo si QA falla: por defecto el coder (si es distinto del QA); 'none' lo desactiva.
- * @param {{opencodeBin?: string, kimiBin?: string, claudeBin?: string, geminiBin?: string, coder?: string, qaEngine?: string, qaModel?: string, coderModel?: string, qaFallback?: string}} options
- * @returns {{opencodeBin: string, kimiBin: string, claudeBin: string, geminiBin: string, coder: string, qaEngine: string, qaModel: string, coderModel: string|null, qaFallback: string|null}}
+ * Compatibilidad: un `qaModel` de OpenCode (`opencode/...`) con un QA que no es OpenCode se toma como modelo del fallback.
+ * @param {{opencodeBin?: string, kimiBin?: string, claudeBin?: string, geminiBin?: string, agyBin?: string, coder?: string, qaEngine?: string, coderModel?: string, qaModel?: string, qaFallback?: string, qaFallbackModel?: string}} options
+ * @returns {{opencodeBin: string, kimiBin: string, claudeBin: string, geminiBin: string, agyBin: string, coder: string, qaEngine: string, coderModel: string|null, qaModel: string|null, qaFallback: string|null, qaFallbackModel: string|null}}
  */
 export function resolveBins(options = {}) {
   const coder = options.coder || process.env.CODER_AGENT || DEFAULT_CODER;
@@ -76,16 +155,27 @@ export function resolveBins(options = {}) {
   if (fallbackSetting === 'none') qaFallback = null;
   else if (fallbackSetting) qaFallback = fallbackSetting;
   else qaFallback = coder !== qaEngine ? coder : null;
+  qaFallback = qaFallback === qaEngine ? null : qaFallback;
+
+  let rawQaModel = options.qaModel || process.env.QA_MODEL || null;
+  let rawFallbackModel = options.qaFallbackModel || process.env.QA_FALLBACK_MODEL || null;
+  if (rawQaModel?.startsWith('opencode/') && qaEngine !== 'opencode' && !rawFallbackModel) {
+    rawFallbackModel = rawQaModel;
+    rawQaModel = null;
+  }
+
   return {
     opencodeBin: options.opencodeBin || process.env.OPENCODE_BIN || FALLBACK_OPENCODE_BIN,
     kimiBin: options.kimiBin || process.env.KIMI_BIN || FALLBACK_KIMI_BIN,
     claudeBin: options.claudeBin || process.env.CLAUDE_BIN || findOnPath('claude'),
     geminiBin: options.geminiBin || process.env.GEMINI_BIN || findOnPath('gemini'),
+    agyBin: options.agyBin || process.env.AGY_BIN || FALLBACK_AGY_BIN,
     coder,
     qaEngine,
-    qaModel: options.qaModel || process.env.QA_MODEL || DEFAULT_FALLBACK_QA_MODEL,
-    coderModel: options.coderModel || process.env.CODER_MODEL || null,
-    qaFallback: qaFallback === qaEngine ? null : qaFallback,
+    coderModel: resolveModel(coder, options.coderModel || process.env.CODER_MODEL || null, { role: 'coder' }),
+    qaModel: resolveModel(qaEngine, rawQaModel, { role: 'qa' }),
+    qaFallbackModel: qaFallback ? resolveModel(qaFallback, rawFallbackModel, { role: 'qa' }) : null,
+    qaFallback,
   };
 }
 
@@ -94,7 +184,7 @@ export function resolveBins(options = {}) {
  * (sin preguntas): el pipeline es no interactivo por diseño.
  * @param {string} agent Uno de AGENTS.
  * @param {string} prompt Instrucción para el agente.
- * @param {string|null} model Modelo opcional.
+ * @param {string|null} model Modelo ya resuelto (null = default del CLI).
  * @param {ReturnType<typeof resolveBins>} bins Binarios resueltos.
  * @returns {{command: string, args: string[]}}
  */
@@ -110,16 +200,19 @@ function buildAgentCommand(agent, prompt, model, bins) {
       return { command: bins.claudeBin, args: ['-p', prompt, '--permission-mode', 'bypassPermissions', ...modelArgs('--model')] };
     case 'gemini':
       return { command: bins.geminiBin, args: ['--skip-trust', '--approval-mode', 'yolo', ...modelArgs('-m'), '-p', prompt] };
+    case 'antigravity':
+      // Sin -c: continuaría la conversación del orquestador si /auto corre en Antigravity.
+      return { command: bins.agyBin, args: ['-p', prompt, '--dangerously-skip-permissions', ...modelArgs('--model')] };
     default:
       throw new Error(`Agente desconocido: '${agent}'. Válidos: ${AGENTS.join(' | ')}`);
   }
 }
 
 /**
- * Genera el comando exacto de cada paso del pipeline según el agente elegido para el rol.
+ * Genera el comando exacto de cada paso del pipeline según el agente y modelo elegidos para el rol.
  * @param {'code'|'fix'|'qa'} step Paso a ejecutar.
  * @param {Parameters<typeof resolveBins>[0]} options Sobreescritura de binarios/agentes/modelos.
- * @returns {{command: string, args: string[], agent: string}}
+ * @returns {{command: string, args: string[], agent: string, model: string|null}}
  */
 export function buildStepCommand(step, options = {}) {
   const bins = resolveBins(options);
@@ -127,14 +220,10 @@ export function buildStepCommand(step, options = {}) {
     throw new Error(`Paso desconocido: '${step}'. Válidos: ${[...VALID_STEPS].join(' | ')}`);
   }
   if (step === 'qa') {
-    const agent = bins.qaEngine;
-    // Kimi como QA conserva su invocación histórica ('-p <prompt> -c').
-    if (agent === 'kimi') return { command: bins.kimiBin, args: ['-p', QA_PROMPT, '-c'], agent };
-    // qaModel (DeepSeek free por defecto) es el modelo de OpenCode en QA; los demás usan su modelo por defecto.
-    return { ...buildAgentCommand(agent, QA_PROMPT, agent === 'opencode' ? bins.qaModel : null, bins), agent };
+    return { ...buildAgentCommand(bins.qaEngine, QA_PROMPT, bins.qaModel, bins), agent: bins.qaEngine, model: bins.qaModel };
   }
-  const agent = bins.coder;
-  return { ...buildAgentCommand(agent, step === 'code' ? CODE_PROMPT : FIX_PROMPT, bins.coderModel, bins), agent };
+  const prompt = step === 'code' ? CODE_PROMPT : FIX_PROMPT;
+  return { ...buildAgentCommand(bins.coder, prompt, bins.coderModel, bins), agent: bins.coder, model: bins.coderModel };
 }
 
 /**
@@ -144,7 +233,7 @@ export function buildStepCommand(step, options = {}) {
  * @returns {string}
  */
 function agentBin(agent, bins) {
-  return { opencode: bins.opencodeBin, kimi: bins.kimiBin, claude: bins.claudeBin, gemini: bins.geminiBin }[agent];
+  return { opencode: bins.opencodeBin, kimi: bins.kimiBin, claude: bins.claudeBin, gemini: bins.geminiBin, antigravity: bins.agyBin }[agent];
 }
 
 /**
@@ -167,7 +256,7 @@ async function appendLog(logFile, content) {
  * corre en otro proceso (p. ej. lanzado por Antigravity vía CLI).
  * Nunca lanza: si el filesystem falla, el pipeline continúa.
  * @param {string} projectDir Directorio del proyecto.
- * @param {{running: boolean, action?: string|null, step?: string|null, iteration?: number, coder?: string|null, qaEngine?: string|null, status?: string|null}} data
+ * @param {{running: boolean, action?: string|null, step?: string|null, iteration?: number, coder?: string|null, coderModel?: string|null, qaEngine?: string|null, qaModel?: string|null, status?: string|null}} data
  * @returns {Promise<void>}
  */
 export async function writeRuntimeState(projectDir, data = {}) {
@@ -180,7 +269,9 @@ export async function writeRuntimeState(projectDir, data = {}) {
       step: data.step ?? null,
       iteration: Number.isFinite(data.iteration) ? data.iteration : 1,
       coder: data.coder ?? null,
+      coderModel: data.coderModel ?? null,
       qaEngine: data.qaEngine ?? null,
+      qaModel: data.qaModel ?? null,
       updatedAt: new Date().toISOString(),
     };
     if (data.status) payload.status = data.status;
@@ -258,33 +349,44 @@ export function isQuotaFailure(outcome = {}) {
  * @returns {Promise<{step: string, command: string, args: string[], cwd: string, dryRun: boolean, exitCode: number, agent: string, logFile?: string, fallbackFrom?: string, qaEngine?: string, [key: string]: unknown}>}
  */
 export async function runStep(step, {
-  projectDir, runner, dryRun = false, coder, qaEngine, qaModel, coderModel, qaFallback, iteration = 1, runtimeAction,
+  projectDir, runner, dryRun = false, coder, qaEngine, qaModel, qaFallbackModel, coderModel, qaFallback, iteration = 1, runtimeAction,
 } = {}) {
   if (!VALID_STEPS.has(step)) {
     throw new Error(`Paso desconocido: '${step}'. Válidos: ${[...VALID_STEPS].join(' | ')}`);
   }
-  const stepOptions = { coder, qaEngine, qaModel, coderModel, qaFallback };
+  const stepOptions = { coder, qaEngine, qaModel, qaFallbackModel, coderModel, qaFallback };
   const bins = resolveBins(stepOptions);
-  const { command, args, agent } = buildStepCommand(step, stepOptions);
+  const { command, args, agent, model } = buildStepCommand(step, stepOptions);
   const cwd = projectDir;
 
   if (dryRun) {
-    return { step, command, args, cwd, dryRun: true, exitCode: 0, agent, coder: bins.coder, qaEngine: bins.qaEngine };
+    return { step, command, args, cwd, dryRun: true, exitCode: 0, agent, model, coder: bins.coder, qaEngine: bins.qaEngine };
   }
 
-  const result = { step, command, args, cwd, dryRun: false, agent, coder: bins.coder, qaEngine: bins.qaEngine };
-  // `runtimeAction: 'loop'` lo inyecta runPipelineLoop para que la telemetría
-  // distinga una corrida orquestada de un paso suelto lanzado desde la GUI/CLI.
-  const runtimeBase = { action: runtimeAction || step, step, iteration, coder: bins.coder };
+  const result = { step, command, args, cwd, dryRun: false, agent, model, coder: bins.coder, qaEngine: bins.qaEngine };
+  // `runtimeAction: 'loop'` distingue una corrida orquestada de un paso suelto.
+  const runtimeBase = {
+    action: runtimeAction || step,
+    step,
+    iteration,
+    coder: bins.coder,
+    coderModel: bins.coderModel,
+    qaModel: bins.qaModel,
+  };
   await writeRuntimeState(projectDir, { ...runtimeBase, running: true, qaEngine: result.qaEngine });
 
   // Fallback de QA: si el agente de QA falla (cuota, crash), reintenta con qaFallback.
   const fallbackAgent = step === 'qa' ? bins.qaFallback : null;
-  const fallbackCommand = () => buildStepCommand('qa', { ...stepOptions, qaEngine: fallbackAgent, qaFallback: 'none' });
+  const fallbackCommand = () => buildStepCommand('qa', {
+    ...stepOptions,
+    qaEngine: fallbackAgent,
+    qaModel: bins.qaFallbackModel,
+    qaFallback: 'none',
+  });
 
   try {
     if (runner) {
-      const injected = await runner({ step, command, args, cwd, agent, qaEngine: bins.qaEngine, qaModel });
+      const injected = await runner({ step, command, args, cwd, agent, model, qaEngine: bins.qaEngine, qaModel: bins.qaModel });
       // Soporte de fallback en runner inyectado si simula error de cuota:
       if (fallbackAgent && injected?.quotaError) {
         const fallbackCmd = fallbackCommand();
@@ -294,8 +396,9 @@ export async function runStep(step, {
           args: fallbackCmd.args,
           cwd,
           agent: fallbackAgent,
+          model: fallbackCmd.model,
           qaEngine: fallbackAgent,
-          qaModel: bins.qaModel,
+          qaModel: bins.qaFallbackModel,
         });
         result.qaEngine = fallbackAgent;
         return {
@@ -304,6 +407,7 @@ export async function runStep(step, {
           command: fallbackCmd.command,
           args: fallbackCmd.args,
           agent: fallbackAgent,
+          model: fallbackCmd.model,
           exitCode: fallbackResult?.exitCode ?? 0,
           fallbackFrom: bins.qaEngine,
           qaEngine: fallbackAgent,
@@ -327,6 +431,7 @@ export async function runStep(step, {
         command: fallbackCmd.command,
         args: fallbackCmd.args,
         agent: fallbackAgent,
+        model: fallbackCmd.model,
         exitCode: fallbackOutcome.exitCode,
         stdout: fallbackOutcome.stdout,
         stderr: fallbackOutcome.stderr,
@@ -357,11 +462,12 @@ export async function runPipelineLoop({
   coder,
   qaEngine,
   qaModel,
+  qaFallbackModel,
   coderModel,
   qaFallback,
   onEvent,
 } = {}) {
-  const agentOptions = { coder, qaEngine, qaModel, coderModel, qaFallback };
+  const agentOptions = { coder, qaEngine, qaModel, qaFallbackModel, coderModel, qaFallback };
   const bins = resolveBins(agentOptions);
   const notify = (event) => {
     if (typeof onEvent === 'function') onEvent(event);
@@ -379,7 +485,9 @@ export async function runPipelineLoop({
         iteration: result.iterations ?? 0,
         status: result.status,
         coder: bins.coder,
+        coderModel: bins.coderModel,
         qaEngine: bins.qaEngine,
+        qaModel: bins.qaModel,
       });
     }
     return result;
@@ -394,7 +502,9 @@ export async function runPipelineLoop({
       step: stepName,
       iteration: iterationNumber,
       coder: bins.coder,
+      coderModel: bins.coderModel,
       qaEngine: bins.qaEngine,
+      qaModel: bins.qaModel,
     });
   };
 
@@ -410,6 +520,7 @@ export async function runPipelineLoop({
   if (!dryRun && runner === undefined) {
     // Validación temprana: verifica los binarios del coder y del QA elegidos
     // (el fallback de QA es opcional: si falta, solo fallará ese reintento).
+    const binEnv = { opencode: 'OPENCODE_BIN', kimi: 'KIMI_BIN', claude: 'CLAUDE_BIN', gemini: 'GEMINI_BIN', antigravity: 'AGY_BIN' };
     for (const agent of new Set([bins.coder, bins.qaEngine])) {
       const bin = agentBin(agent, bins);
       try {
@@ -420,7 +531,7 @@ export async function runPipelineLoop({
           iterations: 0,
           history,
           steps,
-          reason: `Binario de ${agent} no encontrado: ${bin} (configura ${agent.toUpperCase()}_BIN)`,
+          reason: `Binario de ${agent} no encontrado: ${bin} (configura ${binEnv[agent]})`,
         });
       }
     }
@@ -444,7 +555,7 @@ export async function runPipelineLoop({
       const result = await runStep('code', {
         projectDir, runner, dryRun, ...agentOptions, iteration, runtimeAction: 'loop',
       });
-      history.push({ iteration, step: 'code', agent: result.agent, exitCode: result.exitCode });
+      history.push({ iteration, step: 'code', agent: result.agent, model: result.model, exitCode: result.exitCode });
       steps.push('code');
       notify({ type: 'step_end', step: 'code', iteration, result });
       if (result.exitCode !== 0) {
@@ -471,6 +582,7 @@ export async function runPipelineLoop({
         iteration,
         step: 'qa',
         agent: result.agent,
+        model: result.model,
         exitCode: result.exitCode,
         engine: result.qaEngine,
         fallbackFrom: result.fallbackFrom,
@@ -494,7 +606,7 @@ export async function runPipelineLoop({
       const result = await runStep('fix', {
         projectDir, runner, dryRun, ...agentOptions, iteration, runtimeAction: 'loop',
       });
-      history.push({ iteration, step: 'fix', agent: result.agent, exitCode: result.exitCode });
+      history.push({ iteration, step: 'fix', agent: result.agent, model: result.model, exitCode: result.exitCode });
       steps.push('fix');
       notify({ type: 'step_end', step: 'fix', iteration, result });
       if (result.exitCode !== 0) {
@@ -558,6 +670,8 @@ function parseArgs(argv) {
       flags.coderModel = arg.includes('=') ? arg.split('=')[1] : argv[++i];
     } else if (arg === '--qa-model' || arg.startsWith('--qa-model=')) {
       flags.qaModel = arg.includes('=') ? arg.split('=')[1] : argv[++i];
+    } else if (arg === '--qa-fallback-model' || arg.startsWith('--qa-fallback-model=')) {
+      flags.qaFallbackModel = arg.includes('=') ? arg.split('=')[1] : argv[++i];
     } else if (!arg.startsWith('--')) positional.push(arg);
   }
   return { positional, flags };
@@ -575,7 +689,7 @@ function formatLoopResult(result, projectDir) {
     '-'.repeat(52),
   ];
   for (const entry of result.history) {
-    const agent = entry.agent ? ` · ${entry.agent}${entry.fallbackFrom ? ` (fallback de ${entry.fallbackFrom})` : ''}` : '';
+    const agent = entry.agent ? ` · ${entry.agent}${entry.model ? `/${entry.model}` : ''}${entry.fallbackFrom ? ` (fallback de ${entry.fallbackFrom})` : ''}` : '';
     lines.push(`  [iter ${entry.iteration}] ${entry.step}${agent} (exit ${entry.exitCode})`);
   }
   return lines.filter(Boolean).join('\n');
@@ -585,10 +699,15 @@ async function main(argv = process.argv.slice(2)) {
   const { positional, flags } = parseArgs(argv);
   const [command, dirArg = '.'] = positional;
 
-  const usage = `Uso: pipeline-run <loop|code|fix|qa> [dir] [--coder ${AGENTS.join('|')}] [--qa ${AGENTS.join('|')}] [--qa-fallback <agente|none>] [--coder-model <m>] [--qa-model <m>] [--max-retries N] [--dry-run] [--json]`;
-  if (!command || !['loop', 'code', 'fix', 'qa'].includes(command)) {
+  const usage = `Uso: pipeline-run <loop|code|fix|qa|models> [dir] [--coder ${AGENTS.join('|')}] [--qa ${AGENTS.join('|')}] [--qa-fallback <agente|none>] [--coder-model <m>] [--qa-model <m>] [--qa-fallback-model <m>] [--max-retries N] [--dry-run] [--json]`;
+  if (!command || !['loop', 'code', 'fix', 'qa', 'models'].includes(command)) {
     console.error(usage);
     process.exitCode = 1;
+    return;
+  }
+  if (command === 'models') {
+    console.log(JSON.stringify(MODEL_CATALOG, null, 2));
+    process.exitCode = 0;
     return;
   }
   for (const [flag, value] of [['--coder', flags.coder], ['--qa', flags.qaEngine], ['--qa-fallback', flags.qaFallback]]) {
@@ -602,6 +721,7 @@ async function main(argv = process.argv.slice(2)) {
     coder: flags.coder,
     qaEngine: flags.qaEngine,
     qaModel: flags.qaModel,
+    qaFallbackModel: flags.qaFallbackModel,
     coderModel: flags.coderModel,
     qaFallback: flags.qaFallback,
   };
@@ -616,7 +736,8 @@ async function main(argv = process.argv.slice(2)) {
       ...agentFlags,
       onEvent: flags.json ? undefined : (event) => {
         if (event.type === 'step_end') {
-          console.error(`▶ ${event.step} · ${event.result.agent} (iter ${event.iteration}) exit ${event.result.exitCode}`);
+          const model = event.result.model ? `/${event.result.model}` : '';
+          console.error(`▶ ${event.step} · ${event.result.agent}${model} (iter ${event.iteration}) exit ${event.result.exitCode}`);
         }
       },
     });
@@ -637,7 +758,7 @@ async function main(argv = process.argv.slice(2)) {
   if (flags.json) {
     console.log(JSON.stringify(result, null, 2));
   } else {
-    console.log(formatLoopResult({ ...result, status: `STEP_${command.toUpperCase()}`, iterations: 1, history: [{ iteration: 1, step: command, agent: result.agent, fallbackFrom: result.fallbackFrom, exitCode: result.exitCode }], steps: [command], reason: result.error }, projectDir));
+    console.log(formatLoopResult({ ...result, status: `STEP_${command.toUpperCase()}`, iterations: 1, history: [{ iteration: 1, step: command, agent: result.agent, model: result.model, fallbackFrom: result.fallbackFrom, exitCode: result.exitCode }], steps: [command], reason: result.error }, projectDir));
   }
   process.exitCode = result.exitCode === 0 ? 0 : 1;
 }

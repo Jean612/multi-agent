@@ -218,13 +218,14 @@ function readJsonBody(req, maxBytes = 1024 * 1024) {
 
 /**
  * Crea el servidor HTTP + SSE + watcher de "Mission Control".
- * @param {{defaultProjectDir?: string, runner?: Function, coder?: string, qaEngine?: string, qaModel?: string}} options
+ * @param {{defaultProjectDir?: string, runner?: Function, coder?: string, coderModel?: string, qaEngine?: string, qaModel?: string}} options
  * @returns {{server: http.Server, broadcast: Function, getSettings: Function, getState: Function, listen: Function, close: Function}}
  */
 export function createMissionControlServer(options = {}) {
   const settings = {
     defaultProjectDir: options.defaultProjectDir || process.cwd(),
     coder: options.coder || 'opencode',
+    coderModel: options.coderModel || null,
     qaEngine: options.qaEngine || 'kimi',
     qaModel: options.qaModel || null,
     autoWatchPlan: false,
@@ -384,13 +385,13 @@ export function createMissionControlServer(options = {}) {
       git,
       activeRun: effectiveActiveRun,
       autoWatchPlan: settings.autoWatchPlan,
-      bins: resolveBins({ coder: settings.coder, qaEngine: settings.qaEngine, qaModel: settings.qaModel }),
+      bins: resolveBins({ coder: settings.coder, coderModel: settings.coderModel, qaEngine: settings.qaEngine, qaModel: settings.qaModel }),
     };
   }
 
   /**
    * Ejecuta una acción del pipeline (code/fix/qa/loop) con eventos SSE.
-   * @param {{dir?: string, action: string, maxRetries?: number, coder?: string, qaEngine?: string, qaModel?: string, dryRun?: boolean}} bodyParams
+   * @param {{dir?: string, action: string, maxRetries?: number, coder?: string, coderModel?: string, qaEngine?: string, qaModel?: string, dryRun?: boolean}} bodyParams
    */
   async function triggerRun(bodyParams) {
     // Defensa en profundidad: una segunda invocación concurrente (p. ej. Auto-Trigger
@@ -426,6 +427,7 @@ export function createMissionControlServer(options = {}) {
           runner: injectedRunner,
           dryRun: bodyParams.dryRun === true,
           coder: bodyParams.coder ?? settings.coder,
+          coderModel: bodyParams.coderModel ?? settings.coderModel,
           qaEngine: bodyParams.qaEngine ?? settings.qaEngine,
           qaModel: bodyParams.qaModel ?? settings.qaModel,
           onEvent,
@@ -436,6 +438,7 @@ export function createMissionControlServer(options = {}) {
           runner: injectedRunner,
           dryRun: bodyParams.dryRun === true,
           coder: bodyParams.coder ?? settings.coder,
+          coderModel: bodyParams.coderModel ?? settings.coderModel,
           qaEngine: bodyParams.qaEngine ?? settings.qaEngine,
           qaModel: bodyParams.qaModel ?? settings.qaModel,
         });
@@ -549,12 +552,14 @@ export function createMissionControlServer(options = {}) {
         }
         if (isValidAgent(body.coder)) settings.coder = body.coder;
         if (isValidAgent(body.qaEngine)) settings.qaEngine = body.qaEngine;
+        if (typeof body.coderModel === 'string') settings.coderModel = body.coderModel || null;
         if (typeof body.qaModel === 'string') settings.qaModel = body.qaModel || null;
         broadcast({
           type: 'settings_updated',
           autoWatchPlan: settings.autoWatchPlan,
           defaultProjectDir: settings.defaultProjectDir,
           coder: settings.coder,
+          coderModel: settings.coderModel,
           qaEngine: settings.qaEngine,
           qaModel: settings.qaModel,
         });
@@ -565,6 +570,7 @@ export function createMissionControlServer(options = {}) {
             autoWatchPlan: settings.autoWatchPlan,
             defaultProjectDir: settings.defaultProjectDir,
             coder: settings.coder,
+            coderModel: settings.coderModel,
             qaEngine: settings.qaEngine,
             qaModel: settings.qaModel,
           })

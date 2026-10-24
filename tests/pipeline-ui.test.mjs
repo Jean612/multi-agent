@@ -779,9 +779,16 @@ test('POST /api/settings acepta coder y QA de cualquier agente válido e ignora 
     assert.equal(body.bins.qaEngine, 'gemini');
     assert.equal(body.bins.qaFallback, 'claude');
 
+    const withModels = await post({ coder: 'antigravity', coderModel: 'argon', qaEngine: 'claude', qaModel: 'haiku' });
+    assert.equal(withModels.body.coderModel, 'argon');
+    assert.equal(withModels.body.qaModel, 'haiku');
+    const { body: modeled } = await fetchJson('/api/state');
+    assert.equal(modeled.bins.coderModel, 'gemini-4-argon-medium');
+    assert.equal(modeled.bins.qaModel, 'claude-haiku-5-5');
+
     const html = (await fetchJson('/')).body;
     assert.match(html, /id="coder-select"/);
-    for (const agent of ['opencode', 'kimi', 'claude', 'gemini']) {
+    for (const agent of ['opencode', 'kimi', 'claude', 'gemini', 'antigravity']) {
       assert.match(html, new RegExp(`<option value="${agent}">`));
     }
   } finally {
