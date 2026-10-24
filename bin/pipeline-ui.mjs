@@ -26,6 +26,14 @@ const UI_HTML_PATH = path.join(
   'index.html'
 );
 
+/** Directorio ui/ del repositorio. */
+const UI_DIR = path.dirname(UI_HTML_PATH);
+
+/** Lista blanca de assets estáticos de la UI: pathname exacto → archivo en ui/ y tipo. */
+const UI_STATIC_FILES = new Map([
+  ['/office.js', { file: 'office.js', type: 'text/javascript; charset=utf-8' }],
+]);
+
 // ==============================================================================
 // Helpers de infraestructura (Git, archivos, descubrimiento de proyectos)
 // ==============================================================================
@@ -475,6 +483,15 @@ export function createMissionControlServer(options = {}) {
         const html = await fs.readFile(UI_HTML_PATH, 'utf8');
         res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
         res.end(html);
+        return;
+      }
+
+      // Assets estáticos de la UI (solo lista blanca: sin path traversal posible).
+      const staticAsset = method === 'GET' ? UI_STATIC_FILES.get(pathname) : undefined;
+      if (staticAsset) {
+        const content = await fs.readFile(path.join(UI_DIR, staticAsset.file), 'utf8');
+        res.writeHead(200, { 'Content-Type': staticAsset.type, 'Cache-Control': 'no-cache' });
+        res.end(content);
         return;
       }
 

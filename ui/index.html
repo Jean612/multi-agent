@@ -269,6 +269,12 @@
   .pixel-desk.celebrating { border-color: var(--green); box-shadow: 0 0 16px rgba(52, 211, 120, .25); }
   .pixel-desk.celebrating .pixel-avatar { animation: pixel-jump .5s ease-in-out infinite alternate; }
   .pixel-desk.alert { border-color: var(--red); box-shadow: 0 0 16px rgba(255, 91, 91, .25); }
+  .office-canvas-wrap { display: flex; justify-content: center; margin-bottom: 8px; }
+  #office-canvas {
+    display: block; max-width: 100%;
+    image-rendering: pixelated;
+    border: 1px solid var(--border); border-radius: 6px; background: #1a1410;
+  }
   @keyframes pixel-float { from { transform: translateY(0); } to { transform: translateY(-3px); } }
   @keyframes pixel-type { from { transform: translateY(0); } to { transform: translateY(-1px); } }
   @keyframes pixel-code-bars { from { opacity: .45; } to { opacity: 1; } }
@@ -338,6 +344,10 @@
   <div class="office-bar">
     <span class="office-title">🕹️ PIXEL AGENTS OFFICE — TELEMETRÍA EN VIVO</span>
     <span class="badge" id="pixel-scene-badge">🕹️ MODO: EN ESPERA</span>
+  </div>
+  <div class="office-canvas-wrap">
+    <canvas id="office-canvas" width="320" height="180" role="img"
+      aria-label="Oficina pixel-art con los escritorios de Argon, OpenCode y Kimi"></canvas>
   </div>
   <div class="office-floor">
     <!-- Escritorio 1: Argon (Cerebro) -->
@@ -892,6 +902,11 @@
   loadProjects();
   setInterval(refreshState, 7000); // refresco de respaldo por si el watcher falla
 })();
+</script>
+<script type="module">
+  import { createOffice } from '/office.js';
+  const officeCanvas = document.getElementById('office-canvas');
+  if (officeCanvas) window.pixelOffice = createOffice(officeCanvas);
 </script>
 </body>
 </html>

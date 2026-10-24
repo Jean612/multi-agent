@@ -540,3 +540,83 @@ test('CLI bin/pipeline-ui.mjs --help vía symlink sale con código 0 y muestra u
     await cleanupTemp(tempDir);
   }
 });
+
+test('GET /office.js sirve el módulo de la oficina canvas (Pixel Office v3 TASK-01)', async () => {
+  const { controller, port } = await startServer({ defaultProjectDir: '.' });
+  try {
+    const resp = await fetch(`http://127.0.0.1:${port}/office.js`);
+    const body = await resp.text();
+    assert.equal(resp.status, 200);
+    assert.ok((resp.headers.get('content-type') ?? '').includes('text/javascript'));
+    assert.match(body, /export function createOffice/);
+    assert.match(body, /INTERNAL_WIDTH = 320/);
+  } finally {
+    await controller.close();
+  }
+});
+
+test('GET / monta el canvas de la oficina y carga /office.js como módulo', async () => {
+  const { controller, fetchJson } = await startServer({ defaultProjectDir: '.' });
+  try {
+    const { status, body } = await fetchJson('/');
+    assert.equal(status, 200);
+    assert.match(body, /id="office-canvas"/);
+    assert.match(body, /<script type="module">/);
+    assert.match(body, /from '\/office\.js'/);
+    // Las tarjetas pixel-desk actuales siguen visibles (se reemplazan en TASK-02).
+    assert.match(body, /id="desk-planner"/);
+  } finally {
+    await controller.close();
+  }
+});
+
+test('rutas estáticas fuera de la lista blanca responden 404 (sin path traversal)', async () => {
+  const { controller, port } = await startServer({ defaultProjectDir: '.' });
+  try {
+    const forbidden = [
+      '/../package.json',
+      '/%2e%2e/package.json',
+      '/ui/office.js',
+      '/office.js/../package.json',
+      '/bin/pipeline-ui.mjs',
+      '/package.json',
+    ];
+    for (const reqPath of forbidden) {
+      const res = await rawRequest(port, {
+        path: reqPath,
+        headers: { Host: `127.0.0.1:${port}` },
+      });
+      assert.equal(res.status, 404, `${reqPath} debe responder 404`);
+    }
+  } finally {
+    await controller.close();
+  }
+});
+
+test('buildOfficeMap y computeScale son puros e importables en Node', async () => {
+  const office = await import('../ui/office.js');
+
+  const map = office.buildOfficeMap();
+  assert.equal(map.cols, 20);
+  assert.equal(map.rows, 12);
+  assert.equal(map.tiles.length, 12);
+  for (const row of map.tiles) assert.equal(row.length, 20);
+  assert.equal(map.tiles[0][0], 'wall');
+  assert.equal(map.tiles[2][0], 'floor');
+  assert.deepEqual(map.desks.map((d) => d.id), ['planner', 'coder', 'qa']);
+
+  const types = new Set(map.props.map((p) => p.type));
+  for (const type of ['desk', 'chair', 'monitor', 'bookshelf', 'coffee', 'plant']) {
+    assert.ok(types.has(type), `falta un prop de tipo ${type}`);
+  }
+  for (const prop of map.props) {
+    assert.ok(prop.col >= 0 && prop.col + prop.w <= 20, `prop fuera de rango horizontal: ${JSON.stringify(prop)}`);
+    assert.ok(prop.row >= 0 && prop.row + prop.h <= 12, `prop fuera de rango vertical: ${JSON.stringify(prop)}`);
+  }
+
+  assert.equal(office.computeScale(1000, 600), 3);
+  assert.equal(office.computeScale(100, 100), 1);
+  assert.equal(office.computeScale(640, 1000), 2);
+  assert.equal(office.computeScale(NaN, 100), 1);
+  assert.equal(office.computeScale(-5, 0), 1);
+});
