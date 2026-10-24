@@ -211,3 +211,30 @@ test('caso borde: continuación del flujo — symlinks anidados 2 niveles igualm
     await fs.rm(tempDir, { recursive: true, force: true });
   }
 });
+
+test('extractStatus solo mira el encabezado: una cita posterior de STATUS no pisa el veredicto', async () => {
+  const body = 'STATUS: CHANGES_REQUIRED\n' + 'linea\n'.repeat(12) + 'Debería quedar STATUS: APPROVED\nSTATUS: APPROVED\n';
+  const tempDir = await scaffold({
+    '01-PLAN.md': '# Plan\n- **Tarea:** x\n',
+    '02-HANDOFF.md': '# Handoff\n',
+    '03-QA-REPORT.md': body,
+  });
+  try {
+    assert.equal((await analyzePipeline(tempDir)).qaStatus, 'CHANGES_REQUIRED');
+  } finally {
+    await cleanup(tempDir);
+  }
+});
+
+test('extractStatus ignora un STATUS que aparece después de las primeras 10 líneas', async () => {
+  const tempDir = await scaffold({
+    '01-PLAN.md': '# Plan\n- **Tarea:** x\n',
+    '02-HANDOFF.md': '# Handoff\n',
+    '03-QA-REPORT.md': 'texto\n'.repeat(12) + 'STATUS: APPROVED\n',
+  });
+  try {
+    assert.equal((await analyzePipeline(tempDir)).qaStatus, null);
+  } finally {
+    await cleanup(tempDir);
+  }
+});

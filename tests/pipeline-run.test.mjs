@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 import { execFile as execFileCallback } from 'node:child_process';
 import { promisify } from 'node:util';
 import { analyzePipeline } from '../bin/pipeline-status.mjs';
-import { buildStepCommand, runPipelineLoop, runStep } from '../bin/pipeline-run.mjs';
+import { buildStepCommand, isQuotaFailure, runPipelineLoop, runStep } from '../bin/pipeline-run.mjs';
 
 const execFile = promisify(execFileCallback);
 
@@ -266,6 +266,61 @@ test('CLI bin/pipeline-run.mjs vía symlink con --dry-run --json imprime JSON v�
     assert.ok(Array.isArray(parsed.steps));
     // dry-run: pasa por code, re-analiza y observa que handoff sigue inexistente.
     assert.ok(parsed.status === 'STALLED' || typeof parsed.status === 'string');
+  } finally {
+    await cleanup(projectDir);
+  }
+});
+
+test('isQuotaFailure: exit 0 nunca dispara fallback aunque stdout mencione 429/balance', () => {
+  assert.equal(isQuotaFailure({ exitCode: 0, stdout: 'diff: balance 429 insufficient', stderr: '' }), false);
+  assert.equal(isQuotaFailure({ exitCode: 0, stdout: '', stderr: 'rate limit warning' }), false);
+});
+
+test('isQuotaFailure: exit distinto de 0 dispara fallback', () => {
+  assert.equal(isQuotaFailure({ exitCode: 1, stdout: '', stderr: 'rate limit exceeded' }), true);
+  assert.equal(isQuotaFailure({ exitCode: 127, stdout: '', stderr: 'spawn ENOENT' }), true);
+});
+
+test('runPipelineLoop: code con exit != 0 devuelve STALLED sin correr QA', async () => {
+  const projectDir = await makeProject({ '01-PLAN.md': '# Plan\n- **Tarea:** code roto\n' });
+  const calls = [];
+  try {
+    const result = await runPipelineLoop({
+      projectDir,
+      runner: async ({ step }) => {
+        calls.push(step);
+        return { exitCode: 1 };
+      },
+    });
+    assert.equal(result.status, 'STALLED');
+    assert.match(result.reason, /code falló \(exit 1\)/);
+    assert.deepEqual(calls, ['code']);
+  } finally {
+    await cleanup(projectDir);
+  }
+});
+
+test('runPipelineLoop: fix con exit != 0 devuelve STALLED sin re-auditar', async () => {
+  const projectDir = await makeProject({ '01-PLAN.md': '# Plan\n- **Tarea:** fix roto\n' });
+  const calls = [];
+  try {
+    const result = await runPipelineLoop({
+      projectDir,
+      runner: async ({ step }) => {
+        calls.push(step);
+        if (step === 'code') {
+          await writePipelineFile(projectDir, '02-HANDOFF.md', '# Handoff\n');
+        } else if (step === 'qa') {
+          await writePipelineFile(projectDir, '03-QA-REPORT.md', 'STATUS: CHANGES_REQUIRED\n');
+        } else if (step === 'fix') {
+          return { exitCode: 2 };
+        }
+        return { exitCode: 0 };
+      },
+    });
+    assert.equal(result.status, 'STALLED');
+    assert.match(result.reason, /fix falló \(exit 2\)/);
+    assert.deepEqual(calls, ['code', 'qa', 'fix']);
   } finally {
     await cleanup(projectDir);
   }

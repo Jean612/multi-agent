@@ -38,7 +38,9 @@ function extractField(text, key) {
  * @returns {string|null} Valor de STATUS en mayúsculas (APPROVED | CHANGES_REQUIRED) o null.
  */
 function extractStatus(text) {
-  const match = text.match(/^\s*[-*]?\s*\**STATUS:\**\s*([A-Z_]+)/m);
+  // Solo el encabezado: el veredicto va al inicio; citas posteriores no cuentan.
+  const head = text.split('\n').slice(0, 10).join('\n');
+  const match = head.match(/^\s*[-*]?\s*\**STATUS:\**\s*([A-Z_]+)/m);
   return match ? match[1] : null;
 }
 

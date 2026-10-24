@@ -173,6 +173,19 @@ async function spawnAndLog(command, args, cwd, logFile) {
 }
 
 /**
+ * Decide si un paso de QA con Kimi falló de verdad y amerita fallback.
+ * Un exit 0 nunca dispara fallback (el stdout contiene el diff auditado y puede
+ * mencionar "429" o "balance" sin que sea un error). Solo un exit != 0 (cuota
+ * agotada, crash, binario roto) activa el fallback.
+ * @param {{exitCode: number, stdout?: string, stderr?: string}} outcome
+ * @returns {boolean}
+ */
+export function isQuotaFailure(outcome = {}) {
+  if (outcome.exitCode === 0) return false;
+  return true;
+}
+
+/**
  * Ejecuta un paso del pipeline (code | fix | qa) con soporte de fallback automático en QA.
  * Si `!dryRun`, publica telemetría best-effort en `.pipeline/runtime.json`
  * (`running: true` antes del agente y `running: false` al terminar).
@@ -236,8 +249,7 @@ export async function runStep(step, { projectDir, runner, dryRun = false, qaEngi
     const isKimiQuotaError =
       step === 'qa' &&
       resolveBins(stepOptions).qaEngine === 'kimi' &&
-      (outcome.exitCode !== 0 ||
-        /quota|rate\s*limit|insufficient|balance|token\s*limit|429/i.test(`${outcome.stdout} ${outcome.stderr}`));
+      isQuotaFailure(outcome);
 
     if (isKimiQuotaError) {
       const chosenModel = resolveBins(stepOptions).qaModel;
@@ -355,6 +367,12 @@ export async function runPipelineLoop({
       history.push({ iteration, step: 'code', exitCode: result.exitCode });
       steps.push('code');
       notify({ type: 'step_end', step: 'code', iteration, result });
+      if (result.exitCode !== 0) {
+        return finish({
+          status: 'STALLED', iterations: iteration, history, steps, finalState: state,
+          reason: `code falló (exit ${result.exitCode})`,
+        });
+      }
       state = await analyzePipeline(projectDir);
     }
 
@@ -398,6 +416,12 @@ export async function runPipelineLoop({
       history.push({ iteration, step: 'fix', exitCode: result.exitCode });
       steps.push('fix');
       notify({ type: 'step_end', step: 'fix', iteration, result });
+      if (result.exitCode !== 0) {
+        return finish({
+          status: 'STALLED', iterations: iteration, history, steps, finalState: state,
+          reason: `fix falló (exit ${result.exitCode})`,
+        });
+      }
       mustRunQa = true;
       continue; // En la siguiente vuelta se corre 'qa' de nuevo.
     }
