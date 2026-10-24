@@ -127,6 +127,7 @@ export const POSES = {
   inspect: { frames: 4, frameMs: 200, dy: [0, 0, 0, 0] },    // lupa barre de izquierda a derecha
   alert:   { frames: 2, frameMs: 150, dy: [0, 0] },          // brazos arriba + sacudida horizontal
   jump:    { frames: 4, frameMs: 120, dy: [0, -3, -5, -3] }, // salto de festejo con brazos arriba
+  walk:    { frames: 2, frameMs: 150, dy: [0, -1] },          // caminata: rebote de 1 px
 };
 
 /** Tabla de poses por estado de escena y escritorio (refleja las clases CSS de updatePixelOffice). */
@@ -266,6 +267,193 @@ export function buildAgentSprite(pose, frame) {
   }
 
   return { rows, dx, dy };
+}
+
+// ==============================================================================
+// Director de escena: transiciones y coreografías de entrega (puro, sin DOM)
+// ==============================================================================
+
+/** Tipos de coreografía que puede disparar un cambio de estado de escena. */
+export const TRANSITIONS = ['handoff-plan', 'handoff-code', 'return-fix', 'celebrate'];
+
+/**
+ * Detecta la coreografía para el paso prev → next (ambos estados de escena).
+ * @param {string|null} prev Estado activo previo (puede ser null).
+ * @param {string} next Estado nuevo.
+ * @returns {string|null} Un valor de TRANSITIONS o null.
+ */
+export function detectTransition(prev, next) {
+  if (!SCENE_STATES.includes(next) || prev === next) return null;
+  if (next === 'approved') return 'celebrate';
+  if (prev === 'planning' && next === 'code') return 'handoff-plan';
+  if ((prev === 'code' || prev === 'fix' || prev === 'changes_required') && next === 'qa') {
+    return 'handoff-code';
+  }
+  if (prev === 'qa' && (next === 'changes_required' || next === 'fix')) return 'return-fix';
+  return null;
+}
+
+/** y (px) del pasillo, debajo de las sillas. */
+export const LANE_Y = 112;
+/** Velocidad de caminata en px por segundo. */
+export const WALK_SPEED = 60;
+/** Pausa al entregar (ms). */
+export const HANDOFF_HOLD_MS = 400;
+/** Duración de 'celebrate' en ms (sin caminata). */
+export const CELEBRATE_MS = 1200;
+/** Máximo de coreografías en espera. */
+export const MAX_PENDING = 2;
+
+/**
+ * Interpola linealmente un camino de keyframes { t, x, y } en un instante dado.
+ * @param {Array<{t: number, x: number, y: number}>} path Keyframes con t creciente, empezando en 0.
+ * @param {number} elapsedMs Instante en ms.
+ * @returns {{x: number, y: number}} Posición con coordenadas enteras.
+ */
+export function interpolatePath(path, elapsedMs) {
+  const first = path[0];
+  const last = path[path.length - 1];
+  if (!Number.isFinite(elapsedMs) || elapsedMs <= 0) return { x: first.x, y: first.y };
+  if (elapsedMs >= last.t) return { x: last.x, y: last.y };
+  for (let i = 0; i < path.length - 1; i++) {
+    const a = path[i];
+    const b = path[i + 1];
+    if (elapsedMs >= a.t && elapsedMs <= b.t) {
+      const span = b.t - a.t;
+      const k = span === 0 ? 0 : (elapsedMs - a.t) / span;
+      return { x: Math.round(a.x + (b.x - a.x) * k), y: Math.round(a.y + (b.y - a.y) * k) };
+    }
+  }
+  return { x: last.x, y: last.y };
+}
+
+/** Rutas de entrega: actor, target y objeto de cada tipo de caminata. */
+const CHOREO_ROUTES = {
+  'handoff-plan': { actor: 'planner', target: 'coder', prop: 'scroll' },
+  'handoff-code': { actor: 'coder', target: 'qa', prop: 'box' },
+  'return-fix': { actor: 'qa', target: 'coder', prop: 'box' },
+};
+
+/**
+ * Construye una coreografía con waypoints fijos (función pura, sin pathfinding).
+ * @param {string} type Un valor de TRANSITIONS.
+ * @param {object} [map] Mapa de la oficina (por defecto buildOfficeMap()).
+ * @returns {{type: string, actor: string|null, target: string|null, prop: string|null,
+ *   duration: number, dropT: number, path: Array<{t: number, x: number, y: number}>}|null}
+ */
+export function buildChoreography(type, map = buildOfficeMap()) {
+  if (type === 'celebrate') {
+    return { type, actor: null, target: null, prop: null, duration: CELEBRATE_MS, dropT: 0, path: [] };
+  }
+  const route = CHOREO_ROUTES[type];
+  if (!route) return null;
+
+  const deskOf = (id) => map.desks.find((d) => d.id === id);
+  const A = agentAnchor(deskOf(route.actor));
+  const T = agentAnchor(deskOf(route.target));
+  const ms = (d) => Math.round((d / WALK_SPEED) * 1000);
+
+  // Se para al costado del target, del lado desde el que llega.
+  const standX = A.x < T.x ? T.x - 14 : T.x + 14;
+  const t1 = ms(LANE_Y - A.y); // baja del asiento al pasillo
+  const t2 = t1 + ms(Math.abs(standX - A.x)); // recorre el pasillo
+  const t3 = t2 + HANDOFF_HOLD_MS; // pausa de entrega
+  const t4 = t3 + (t2 - t1); // vuelta por el pasillo
+  const t5 = t4 + t1; // se sienta de nuevo
+  const path = [
+    { t: 0, x: A.x, y: A.y },
+    { t: t1, x: A.x, y: LANE_Y },
+    { t: t2, x: standX, y: LANE_Y },
+    { t: t3, x: standX, y: LANE_Y },
+    { t: t4, x: A.x, y: LANE_Y },
+    { t: t5, x: A.x, y: A.y },
+  ];
+  return {
+    type,
+    actor: route.actor,
+    target: route.target,
+    prop: route.prop,
+    duration: t5,
+    dropT: t2 + Math.round(HANDOFF_HOLD_MS / 2),
+    path,
+  };
+}
+
+/**
+ * Director de escena: convierte estados en coreografías encoladas.
+ * Compara contra el último estado ACTIVO (≠ 'idle') para tolerar los 'idle'
+ * momentáneos que la UI ve entre pasos del loop (code → idle → qa).
+ * Puro: recibe `now` siempre como argumento.
+ * @param {string} [initialState] Estado de escena inicial.
+ */
+export function createSceneDirector(initialState = 'idle') {
+  const map = buildOfficeMap();
+  let lastActive = SCENE_STATES.includes(initialState) && initialState !== 'idle' ? initialState : null;
+  /** @type {{choreo: object, startedAt: number}|null} */
+  let current = null;
+  /** @type {object[]} */
+  let pending = [];
+
+  /**
+   * Registra un nuevo estado de escena y encola la coreografía que corresponda.
+   * Los estados inválidos y los 'idle' momentáneos se ignoran.
+   */
+  function push(next, now) {
+    void now;
+    if (!SCENE_STATES.includes(next) || next === 'idle') return;
+    const type = detectTransition(lastActive, next);
+    lastActive = next;
+    if (type) {
+      pending.push(buildChoreography(type));
+      while (pending.length > MAX_PENDING) pending.shift(); // descarta las más viejas
+    }
+  }
+
+  /** Avanza la cola: cierra la coreografía terminada y arranca la siguiente. */
+  function tick(now) {
+    if (current && now - current.startedAt >= current.choreo.duration) current = null;
+    if (!current && pending.length) current = { choreo: pending.shift(), startedAt: now };
+    return current?.choreo.type ?? null;
+  }
+
+  /** Salta al estado final: vacía la coreografía en curso y la cola. No toca lastActive. */
+  function skipToEnd() {
+    current = null;
+    pending = [];
+  }
+
+  /** Devuelve una foto del instante: posición, pose y objeto del actor en caminata. */
+  function snapshot(now) {
+    if (!current) return null;
+    const elapsed = now - current.startedAt;
+    const c = current.choreo;
+    if (c.actor === null) {
+      return { type: c.type, actor: null, x: 0, y: 0, pose: null, prop: null };
+    }
+    const pos = interpolatePath(c.path, elapsed);
+    const holding = elapsed >= c.path[2].t && elapsed < c.path[3].t;
+    const pose = holding ? 'idle' : 'walk';
+    let prop;
+    if (elapsed < c.dropT) {
+      prop = { kind: c.prop, x: pos.x + 11, y: pos.y + 12 }; // en la mano
+    } else {
+      const T = agentAnchor(map.desks.find((d) => d.id === c.target));
+      prop = { kind: c.prop, x: T.x + 5, y: T.y + 1 }; // sobre el escritorio del target
+    }
+    return { type: c.type, actor: c.actor, x: pos.x, y: pos.y, pose, prop };
+  }
+
+  /** Devuelve una copia de los tipos de coreografía en espera. */
+  function getPending() {
+    return pending.map((c) => c.type);
+  }
+
+  /** Devuelve el último estado activo (≠ 'idle'). */
+  function getLastActive() {
+    return lastActive;
+  }
+
+  return { push, tick, skipToEnd, snapshot, getPending, getLastActive };
 }
 
 // ==============================================================================
@@ -418,11 +606,31 @@ export function agentAnchor(desk) {
   return { x: desk.col * TILE + 8, y: (desk.row + 1) * TILE + 9 - 24 };
 }
 
+/** Pinta el objeto entregado (pergamino o caja) con fillRect y enteros. */
+function drawProp(ctx, kind, x, y) {
+  if (kind === 'scroll') {
+    ctx.fillStyle = '#f3e2b3';
+    ctx.fillRect(x, y, 6, 4); // cuerpo
+    ctx.fillStyle = '#c9a86a';
+    ctx.fillRect(x, y, 1, 4); // punta izquierda
+    ctx.fillRect(x + 5, y, 1, 4); // punta derecha
+    ctx.fillStyle = '#d94a4a';
+    ctx.fillRect(x + 2, y + 1, 2, 2); // sello
+  } else if (kind === 'box') {
+    ctx.fillStyle = '#a0703a';
+    ctx.fillRect(x, y, 6, 5); // cuerpo
+    ctx.fillStyle = '#7a5228';
+    ctx.fillRect(x, y, 6, 1); // tapa
+    ctx.fillStyle = '#e8d8a8';
+    ctx.fillRect(x + 2, y, 2, 5); // cinta
+  }
+}
+
 /**
  * Monta la oficina pixel-art sobre un <canvas> existente.
  * @param {HTMLCanvasElement} canvas Canvas destino.
  * @param {{host?: HTMLElement}} [options] `host` opcional para medir el espacio disponible.
- * @returns {{render: Function, resize: Function, destroy: Function, map: object}|null}
+ * @returns {{render: Function, resize: Function, destroy: Function, setScene: Function, map: object}|null}
  *   `null` si el canvas no ofrece contexto 2D (sin lanzar excepciones).
  */
 export function createOffice(canvas, options = {}) {
@@ -447,31 +655,54 @@ export function createOffice(canvas, options = {}) {
 
   // Estado de escena inicial: el módulo carga después del primer updatePixelOffice.
   let sceneState = SCENE_STATES.includes(host?.dataset?.sceneState) ? host.dataset.sceneState : 'idle';
+  const director = createSceneDirector(sceneState);
 
   // Accesibilidad: sin animación si el usuario pidió reduced-motion.
   const motionQuery = window.matchMedia?.('(prefers-reduced-motion: reduce)') ?? null;
   let reducedMotion = !!motionQuery?.matches;
 
   function render(now = performance.now()) {
+    director.tick(now);
+    const snap = director.snapshot(now);
     ctx.drawImage(staticLayer, 0, 0);
-    for (const desk of map.desks) {
-      const pose = poseFor(sceneState, desk.id);
-      const frame = frameIndexAt(pose, now, reducedMotion);
-      const sprite = buildAgentSprite(pose, frame);
-      const dx = reducedMotion ? 0 : sprite.dx;
-      const dy = reducedMotion ? 0 : sprite.dy;
-      const a = agentAnchor(desk);
-      drawSprite(ctx, sprite.rows, AGENT_PALETTES[desk.id], a.x + dx, a.y + dy);
+    // Primero los sentados y después el que camina, para que el del pasillo quede por delante.
+    for (const pass of ['seated', 'walker']) {
+      for (const desk of map.desks) {
+        const walking = snap?.actor === desk.id;
+        if ((pass === 'walker') !== walking) continue;
+        let pose;
+        let x;
+        let y;
+        if (walking) {
+          pose = snap.pose;
+          x = snap.x;
+          y = snap.y;
+        } else {
+          pose = poseFor(sceneState, desk.id);
+          const a = agentAnchor(desk);
+          x = a.x;
+          y = a.y;
+        }
+        const frame = frameIndexAt(pose, now, reducedMotion);
+        const sprite = buildAgentSprite(pose, frame);
+        const dx = reducedMotion || walking ? 0 : sprite.dx;
+        const dy = reducedMotion ? 0 : sprite.dy;
+        drawSprite(ctx, sprite.rows, AGENT_PALETTES[desk.id], x + dx, y + dy);
+      }
     }
+    if (snap?.prop) drawProp(ctx, snap.prop.kind, snap.prop.x, snap.prop.y);
   }
 
   /**
    * Cambia el estado de escena y re-renderiza al instante.
-   * `context` se acepta y se ignora por ahora; TASK-03 lo usará.
+   * `context` queda reservado y se sigue ignorando por ahora.
    */
   function setScene(state, context = {}) {
     void context;
     sceneState = SCENE_STATES.includes(state) ? state : 'idle';
+    director.push(sceneState, performance.now());
+    if (reducedMotion || document.hidden) director.skipToEnd();
+    syncLoop();
     render();
   }
 
@@ -514,12 +745,14 @@ export function createOffice(canvas, options = {}) {
   }
 
   function onVisibility() {
+    if (document.hidden) director.skipToEnd(); // al volver, la escena ya está en el estado final
     syncLoop();
     if (!document.hidden) render();
   }
 
   function onMotionChange() {
     reducedMotion = !!motionQuery?.matches;
+    if (reducedMotion) director.skipToEnd();
     syncLoop();
     render();
   }
