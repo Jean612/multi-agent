@@ -28,9 +28,24 @@ Actúas como **Orquestador del flujo Multi-Agente headless**. Tu única interacc
 4. Los logs de cada subproceso quedan en `.pipeline/logs/<timestamp>-<step>.log`.
 5. Para inspección sin gasto de cuota: `pipeline-run loop . --dry-run --json` simula los pasos sin ejecutar agentes reales.
 
-### Paso 3 — Cierre (Cerebro / Argon)
-1. Si `pipeline-run` terminó en `APPROVED`, ejecuta la skill `pipeline-close` para el visto bueno arquitectónico final.
-2. Exporta el conocimiento generado a la wiki personal con la skill `wiki-export`.
+### Paso 3 — Cierre y Resumen Ejecutivo Obligatorio (Cerebro / Argon)
+1. Si `pipeline-run` terminó en `APPROVED`, ejecuta la skill `pipeline-close` para el visto bueno arquitectónico final, actualización de `.pipeline/ROADMAP.md` (si existe), exportación unificada a la wiki y archivado en `.pipeline/archive/`.
+2. **OBLIGATORIO — Entregar siempre al usuario un Resumen Ejecutivo estructurado y visual:**
+   Al terminar, NO digas solo "quedó listo". Debes renderizar esta ficha resumen:
+
+   ```markdown
+   ### 📋 Resumen Ejecutivo del Pipeline
+   - **Tarea:** <Nombre de la tarea o TASK-XX>
+   - **Iteraciones:** <N iteraciones (ej. 1 intento directo / 2 intentos con fix de QA)>
+   - **Archivos creados o modificados:**
+     - `ruta/archivo1.ext` — <resumen de 1 línea de lo que se le hizo>
+     - `ruta/archivo2.ext` — <resumen de 1 línea>
+   - **Resultado de Tests:** ✅ <ej. 9/9 tests pasando (npm test)>
+   - **Auditoría de QA:** ✅ APPROVED por <Kimi Code / OpenCode DeepSeek>
+   - **Archivado local:** `.pipeline/archive/<carpeta-archivada>/`
+   - **Wiki:** ✅ Nota atómica generada y sincronizada (si aplica)
+   - **Roadmap:** <Tareas restantes si existe ROADMAP.md o 'Listo para continuar'>
+   ```
 
 ## Reglas importantes
 - Nunca edites manualmente `02-HANDOFF.md` ni `03-QA-REPORT.md`: son territorio de OpenCode y Kimi Code.
