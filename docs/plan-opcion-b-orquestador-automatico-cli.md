@@ -10,16 +10,16 @@ Lograr que **tú solo interactúes con una ventana (Antigravity con Gemini 4 Arg
 En tu Mac ya cuentas con los binarios CLI de ambos agentes secundarios, los cuales soportan ejecución **no interactiva (headless)** y **persistencia de sesión por carpeta de proyecto** (`-c` / `--continue`):
 
 1. **OpenCode CLI:**
-   * Ruta: `/Volumes/JeanFiles/.opencode/bin/opencode`
+   * Ruta: `~/.opencode/bin/opencode`
    * Comando no interactivo:
      ```bash
-     /Volumes/JeanFiles/.opencode/bin/opencode run -c "Prompt de tarea"
+     ~/.opencode/bin/opencode run -c "Prompt de tarea"
      ```
 2. **Kimi Code CLI:**
-   * Ruta: `/Volumes/JeanFiles/.kimi-code/bin/kimi`
+   * Ruta: `~/.kimi-code/bin/kimi`
    * Comando no interactivo autónomo:
      ```bash
-     /Volumes/JeanFiles/.kimi-code/bin/kimi -p "Prompt de QA" --auto -c
+     ~/.kimi-code/bin/kimi -p "Prompt de QA" --auto -c
      ```
 
 > [!TIP]
@@ -62,7 +62,7 @@ Un script ejecutable en Bash/Node que Antigravity puede invocar (o que tú puede
 * `agent-pipeline loop [project_dir] --max-retries 3` → Ejecuta automáticamente `code` → `qa` → si `03-QA-REPORT.md` contiene `STATUS: CHANGES_REQUIRED`, vuelve a correr `code` hasta obtener `STATUS: APPROVED`.
 
 ### 4.2. Skill en Antigravity: `orquestador-equipo`
-Ubicada en `/Volumes/JeanFiles/.gemini/config/skills/orquestador-equipo/SKILL.md`.
+Ubicada en `~/.gemini/config/skills/orquestador-equipo/SKILL.md`.
 * **Instrucciones para Argon:**
   1. Cuando el usuario pida desarrollar una funcionalidad usando el equipo multi-agente:
   2. Analizar el repositorio y escribir `.pipeline/01-PLAN.md`.
@@ -74,7 +74,7 @@ Ubicada en `/Volumes/JeanFiles/.gemini/config/skills/orquestador-equipo/SKILL.md
 ## 5. Plan de Implementación Paso a Paso
 
 1. **Fase 1 (Preparación de Plantillas):** Definir el formato estricto de `.pipeline/01-PLAN.md`, `02-HANDOFF.md` y `03-QA-REPORT.md` (compartido con la Opción A).
-2. **Fase 2 (Script CLI `agent-pipeline`):** Crear el script en `/Volumes/JeanFiles/.local/bin/agent-pipeline` con manejo de timeouts, logs en `.pipeline/logs/` y detección automática de `STATUS: APPROVED`.
+2. **Fase 2 (Script CLI `agent-pipeline`):** Crear el script en `~/.local/bin/agent-pipeline` con manejo de timeouts, logs en `.pipeline/logs/` y detección automática de `STATUS: APPROVED`.
 3. **Fase 3 (Skill `orquestador-equipo`):** Registrar la skill global en Antigravity para que cualquier proyecto que abras en Antigravity tenga disponible este flujo automático.
 4. **Fase 4 (Prueba Piloto):** Ejecutar una tarea pequeña en un repositorio de prueba y verificar cuántos tokens consumió Kimi Code y cómo iteró OpenCode.
 

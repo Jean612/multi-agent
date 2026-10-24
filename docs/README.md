@@ -6,9 +6,9 @@ Este directorio contiene la documentación técnica y los planes de implementaci
 
 | Rol | Agente / Modelo | Cuota / Costo | Responsabilidad Principal | Binario Local Detectado |
 | :--- | :--- | :--- | :--- | :--- |
-| **1. Cerebro (Planner & Juez Final)** | **Antigravity (Gemini 4 Argon)** | Suscripción Google | Investigar el repositorio, diseñar la arquitectura, generar el plan exacto y dar el visto bueno final. | `/Volumes/JeanFiles/.local/bin/agy` |
-| **2. Coder (Fuerza Bruta & Iteración)** | **OpenCode (GLM 5.3 Flash Free)** | **Gratis / Ilimitado** | Escribir código, ejecutar pruebas, corregir errores de compilación e iterar todas las veces necesarias. | `/Volumes/JeanFiles/.opencode/bin/opencode` |
-| **3. QA (Auditor Quirúrgico)** | **Kimi Code** | **Plan Básico (Limitado)** | Auditar **únicamente** el `git diff` contra el plan original para detectar bugs, edge cases y fallos de seguridad sin gastar cuota explorando el repo. | `/Volumes/JeanFiles/.kimi-code/bin/kimi` |
+| **1. Cerebro (Planner & Juez Final)** | **Antigravity (Gemini 4 Argon)** | Suscripción Google | Investigar el repositorio, diseñar la arquitectura, generar el plan exacto y dar el visto bueno final. | `~/.local/bin/agy` |
+| **2. Coder (Fuerza Bruta & Iteración)** | **OpenCode (GLM 5.3 Flash Free)** | **Gratis / Ilimitado** | Escribir código, ejecutar pruebas, corregir errores de compilación e iterar todas las veces necesarias. | `~/.opencode/bin/opencode` |
+| **3. QA (Auditor Quirúrgico)** | **Kimi Code** | **Plan Básico (Limitado)** | Auditar **únicamente** el `git diff` contra el plan original para detectar bugs, edge cases y fallos de seguridad sin gastar cuota explorando el repo. | `~/.kimi-code/bin/kimi` |
 
 ---
 

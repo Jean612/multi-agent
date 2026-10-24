@@ -5,7 +5,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { promises as fs } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFile as execFileCallback } from 'node:child_process';
@@ -41,21 +41,21 @@ async function writePipelineFile(projectDir, name, content) {
 
 test('buildStepCommand genera binarios y argumentos exactos para code (OpenCode)', () => {
   const { command, args } = buildStepCommand('code');
-  assert.equal(command, process.env.OPENCODE_BIN || '/Volumes/JeanFiles/.opencode/bin/opencode');
+  assert.equal(command, process.env.OPENCODE_BIN || path.join(homedir(), '.opencode', 'bin', 'opencode'));
   assert.deepEqual(args.slice(0, 3), ['run', '--auto', '-c']);
   assert.match(args[3], /pipeline-code:.*01-PLAN\.md.*02-HANDOFF\.md/);
 });
 
 test('buildStepCommand genera binarios y argumentos exactos para fix (OpenCode)', () => {
   const { command, args } = buildStepCommand('fix');
-  assert.equal(command, process.env.OPENCODE_BIN || '/Volumes/JeanFiles/.opencode/bin/opencode');
+  assert.equal(command, process.env.OPENCODE_BIN || path.join(homedir(), '.opencode', 'bin', 'opencode'));
   assert.deepEqual(args.slice(0, 3), ['run', '--auto', '-c']);
   assert.match(args[3], /pipeline-code en modo corrección:.*03-QA-REPORT\.md/);
 });
 
 test('buildStepCommand genera binarios y argumentos exactos para qa (Kimi)', () => {
   const { command, args } = buildStepCommand('qa');
-  assert.equal(command, process.env.KIMI_BIN || '/Volumes/JeanFiles/.kimi-code/bin/kimi');
+  assert.equal(command, process.env.KIMI_BIN || path.join(homedir(), '.kimi-code', 'bin', 'kimi'));
   assert.equal(args[0], '-p');
   assert.match(args[1], /skill qa:.*03-QA-REPORT\.md.*(APPROVED|CHANGES_REQUIRED)/);
   assert.deepEqual(args.slice(2), ['-c']);
@@ -88,7 +88,7 @@ test('buildStepCommand genera comando de OpenCode cuando qaEngine es opencode (f
     qaEngine: 'opencode',
     qaModel: 'opencode/deepseek-v4.1-flash-free',
   });
-  assert.equal(command, process.env.OPENCODE_BIN || '/Volumes/JeanFiles/.opencode/bin/opencode');
+  assert.equal(command, process.env.OPENCODE_BIN || path.join(homedir(), '.opencode', 'bin', 'opencode'));
   assert.deepEqual(args.slice(0, 3), ['run', '--auto', '-c']);
   assert.equal(args[3], '-m');
   assert.equal(args[4], 'opencode/deepseek-v4.1-flash-free');
@@ -245,7 +245,7 @@ test('runStep dryRun no ejecuta subprocesos y devuelve exitCode 0', async () => 
     const result = await runStep('code', { projectDir, dryRun: true });
     assert.equal(result.dryRun, true);
     assert.equal(result.exitCode, 0);
-    assert.equal(result.command, process.env.OPENCODE_BIN || '/Volumes/JeanFiles/.opencode/bin/opencode');
+    assert.equal(result.command, process.env.OPENCODE_BIN || path.join(homedir(), '.opencode', 'bin', 'opencode'));
     assert.equal(result.cwd, projectDir);
     assert.equal(result.logFile, undefined, 'dry-run no debe generar logs');
   } finally {

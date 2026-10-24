@@ -19,7 +19,7 @@ Actúas como el **Cerebro / Arquitecto Principal (Gemini 4 Argon)** cerrando el 
    - Ejecuta `git status -s` y `git diff --stat` para confirmar la coherencia arquitectónica.
 
 3. **Exportación Unificada a la Wiki (`wiki-export` de los 3 Agentes):**
-   - Lee y sigue las instrucciones de `/Volumes/JeanFiles/.gemini/config/skills/wiki-export/SKILL.md`.
+   - Lee y sigue las instrucciones de la skill `wiki-export` (`~/.gemini/config/skills/wiki-export/SKILL.md` o `~/.agents/skills/wiki-export/SKILL.md` si está instalada).
    - En lugar de resumir solo este chat, **sintetiza el trabajo combinado de los 3 agentes** (usando `01-PLAN.md`, `02-HANDOFF.md`, `03-QA-REPORT.md` y el `git diff`):
      - Qué se diseñó (Argon).
      - Qué se implementó y qué quirks o problemas técnicos se resolvieron al codear (OpenCode).

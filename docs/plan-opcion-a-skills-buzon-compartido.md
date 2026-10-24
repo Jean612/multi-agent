@@ -69,7 +69,7 @@ Tanto **Antigravity**, **OpenCode** como **Kimi Code** soportan el estándar de 
 
 ### Paso 1: Crear el directorio central de Skills
 Crear las 3 skills en tu carpeta de configuración global y exponerlas a los tres agentes:
-* **Antigravity:** `/Volumes/JeanFiles/.gemini/config/skills/`
+* **Antigravity:** `~/.gemini/config/skills/`
 * **OpenCode:** `~/.config/opencode/skills/` (o `.agents/skills/`)
 * **Kimi Code:** `~/.kimi/skills/` (o mediante `--skills-dir`)
 

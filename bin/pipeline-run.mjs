@@ -8,14 +8,15 @@
  * Uso: pipeline-run <loop|code|fix|qa> [dir] [--max-retries N] [--dry-run] [--json]
  */
 import { promises as fs, realpathSync } from 'node:fs';
+import { homedir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
 import { analyzePipeline } from './pipeline-status.mjs';
 
 /** Binarios por defecto (sobreescribibles con OPENCODE_BIN y KIMI_BIN). */
-const FALLBACK_OPENCODE_BIN = '/Volumes/JeanFiles/.opencode/bin/opencode';
-const FALLBACK_KIMI_BIN = '/Volumes/JeanFiles/.kimi-code/bin/kimi';
+const FALLBACK_OPENCODE_BIN = path.join(homedir(), '.opencode', 'bin', 'opencode');
+const FALLBACK_KIMI_BIN = path.join(homedir(), '.kimi-code', 'bin', 'kimi');
 const DEFAULT_FALLBACK_QA_MODEL = 'opencode/deepseek-v4.1-flash-free';
 
 const VALID_STEPS = new Set(['code', 'fix', 'qa']);

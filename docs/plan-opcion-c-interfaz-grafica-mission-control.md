@@ -1,7 +1,7 @@
 # Plan Opción C: Interfaz Gráfica Propia (GUI "Mission Control")
 
 ## 1. Objetivo
-Construir tu propia aplicación visual en `/Volumes/JeanFiles/code/Jean/multi-agent` que funcione como un **"Mission Control" de 3 columnas en una sola pantalla**. En ella seleccionas la carpeta de cualquier proyecto tuyo, escribes el prompt de lo que necesitas, y ves en vivo cómo **el Cerebro planea**, **OpenCode programa** y **Kimi Code audita**, con control visual del `git diff` y botones para intervenir si lo deseas.
+Construir tu propia aplicación visual en `~/code/Jean/multi-agent` que funcione como un **"Mission Control" de 3 columnas en una sola pantalla**. En ella seleccionas la carpeta de cualquier proyecto tuyo, escribes el prompt de lo que necesitas, y ves en vivo cómo **el Cerebro planea**, **OpenCode programa** y **Kimi Code audita**, con control visual del `git diff` y botones para intervenir si lo deseas.
 
 ---
 
@@ -10,8 +10,8 @@ Construir tu propia aplicación visual en `/Volumes/JeanFiles/code/Jean/multi-ag
 Tanto `opencode` como `kimi` fueron diseñados con modos especiales para ser controlados por interfaces gráficas externas:
 
 1. **Modo Streaming JSON por CLI:**
-   * **OpenCode:** `/Volumes/JeanFiles/.opencode/bin/opencode run --format json -c "prompt"`
-   * **Kimi Code:** `/Volumes/JeanFiles/.kimi-code/bin/kimi -p "prompt" --auto -c --output-format stream-json`
+   * **OpenCode:** `~/.opencode/bin/opencode run --format json -c "prompt"`
+   * **Kimi Code:** `~/.kimi-code/bin/kimi -p "prompt" --auto -c --output-format stream-json`
    * Ambos emiten eventos JSON línea por línea (pensamiento en vivo, qué herramienta están ejecutando, qué archivo están editando y respuesta final).
 2. **Modo ACP (Agent Client Protocol):**
    * Ambos binarios tienen el subcomando `acp` (`opencode acp` y `kimi acp`), que levanta un servidor JSON-RPC estándar por `stdio` para que una interfaz gráfica mantenga una sesión bidireccional viva.
@@ -47,7 +47,7 @@ flowchart TD
 ## 4. Diseño de la Interfaz Visual (Las 3 Ventanas en 1)
 
 ### 4.1. Cabecera de Proyecto y Control
-* **Selector de Proyecto:** Un desplegable con tus repositorios recientes en `/Volumes/JeanFiles/code/` (ej. elegir cualquier proyecto en el que estés trabajando).
+* **Selector de Proyecto:** Un desplegable con tus repositorios recientes en `~/code/` (ej. elegir cualquier proyecto en el que estés trabajando).
 * **Modo de Ejecución:**
   * **Semi-Automático (Con pausa de aprobación):** Genera el plan y espera que le des clic a *"Aprobar Plan y Mandar a OpenCode"*.
   * **Full Piloto Automático:** Pasa de Plan → OpenCode → Kimi QA → Corrección en OpenCode automáticamente hasta que el semáforo de QA se ponga en Verde.
@@ -76,7 +76,7 @@ flowchart TD
 
 ---
 
-## 6. Plan de Construcción por Fases (En `/Volumes/JeanFiles/code/Jean/multi-agent`)
+## 6. Plan de Construcción por Fases (En `~/code/Jean/multi-agent`)
 
 * **Fase 1 — Backend Orquestador y Parser de Streams (Día 1):**
   * Crear el servidor local que recibe la ruta de un proyecto, gestiona `.pipeline/` y lanza `opencode` y `kimi` en modo `stream-json`, retransmitiendo los eventos por WebSocket.
