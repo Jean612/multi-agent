@@ -58,7 +58,7 @@ test('buildStepCommand genera binarios y argumentos exactos para qa (Kimi)', () 
   assert.equal(command, process.env.KIMI_BIN || '/Volumes/JeanFiles/.kimi-code/bin/kimi');
   assert.equal(args[0], '-p');
   assert.match(args[1], /skill qa:.*03-QA-REPORT\.md.*(APPROVED|CHANGES_REQUIRED)/);
-  assert.deepEqual(args.slice(2), ['--auto', '-c']);
+  assert.deepEqual(args.slice(2), ['-c']);
 });
 
 test('buildStepCommand respeta overrides y variables de entorno OPENCODE_BIN/KIMI_BIN', () => {

@@ -75,7 +75,7 @@ export function buildStepCommand(step, options = {}) {
         args: [
           '-p',
           'Activa la skill qa: audita únicamente el git diff contra .pipeline/01-PLAN.md y .pipeline/02-HANDOFF.md sin explorar el resto del repo y escribe .pipeline/03-QA-REPORT.md comenzando con STATUS: APPROVED o STATUS: CHANGES_REQUIRED',
-          '--auto', '-c',
+          '-c',
         ],
       };
     default:
