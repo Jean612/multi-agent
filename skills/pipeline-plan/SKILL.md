@@ -15,7 +15,10 @@ Tu trabajo es **ahorrarle búsqueda e incertidumbre** a los otros dos agentes. C
 
 ## Pasos de Ejecución
 
-1. **Explorar e Investigar:**
+1. **Explorar e Investigar (y consultar ROADMAP si existe):**
+   - Si existe `.pipeline/ROADMAP.md`, léelo para obtener el contexto de la épica y ubicar la tarea que toca:
+     - Si el usuario dice "inicia la siguiente tarea" o no especifica número, selecciona la primera tarea pendiente (`### [ ] TASK-XX`).
+     - Si el usuario indica una tarea puntual (ej. `TASK-02`), enfócate en ella.
    - Usa tus herramientas de búsqueda (`grep_search`, `find_by_name`, `read_file`) para entender la arquitectura actual del proyecto donde se solicita el cambio.
    - Si algún requisito del usuario es ambiguo, hazle las preguntas necesarias antes de escribir el plan.
 

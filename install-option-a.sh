@@ -16,24 +16,26 @@ AGENTS_SHARED_SKILLS="/Volumes/JeanFiles/.agents/skills"
 
 mkdir -p "$AGY_SKILLS" "$OPENCODE_SKILLS" "$OPENCODE_COMMANDS" "$KIMI_SKILLS" "$AGENTS_SHARED_SKILLS"
 
-# 2. Enlazar Skills para Antigravity (Cerebro: pipeline-plan, pipeline-close y pipeline-auto)
+# 2. Enlazar Skills para Antigravity (Cerebro: pipeline-epic, pipeline-plan, pipeline-close y pipeline-auto)
+ln -sfn "$SKILLS_SRC/pipeline-epic" "$AGY_SKILLS/pipeline-epic"
 ln -sfn "$SKILLS_SRC/pipeline-plan" "$AGY_SKILLS/pipeline-plan"
 ln -sfn "$SKILLS_SRC/pipeline-close" "$AGY_SKILLS/pipeline-close"
 ln -sfn "$SKILLS_SRC/pipeline-auto" "$AGY_SKILLS/pipeline-auto"
-echo "✅ Antigravity skills enlazadas: pipeline-plan, pipeline-close, pipeline-auto"
+echo "✅ Antigravity skills enlazadas: pipeline-epic, pipeline-plan, pipeline-close, pipeline-auto"
 
-# 3. Enlazar Skill y Slash Commands (/code, /fix) para OpenCode
+# 3. Enlazar Skill y Slash Commands (/code, /fix, /qa) para OpenCode
 ln -sfn "$SKILLS_SRC/pipeline-code" "$OPENCODE_SKILLS/pipeline-code"
 ln -sfn "$COMMANDS_SRC/code.md" "$OPENCODE_COMMANDS/code.md"
 ln -sfn "$COMMANDS_SRC/fix.md" "$OPENCODE_COMMANDS/fix.md"
-echo "✅ OpenCode skill (pipeline-code) y comandos (/code, /fix) enlazados"
+ln -sfn "$COMMANDS_SRC/qa.md" "$OPENCODE_COMMANDS/qa.md"
+echo "✅ OpenCode skill (pipeline-code) y comandos (/code, /fix, /qa) enlazados"
 
 # 4. Enlazar Skill (/qa) para Kimi Code
 ln -sfn "$SKILLS_SRC/qa" "$KIMI_SKILLS/qa"
 echo "✅ Kimi Code skill (/qa) enlazada"
 
 # 5. Enlazar todas en ~/.agents/skills (estándar universal compartido)
-for skill in pipeline-plan pipeline-code qa pipeline-close pipeline-auto; do
+for skill in pipeline-epic pipeline-plan pipeline-code qa pipeline-close pipeline-auto; do
   ln -sfn "$SKILLS_SRC/$skill" "$AGENTS_SHARED_SKILLS/$skill"
 done
 echo "✅ Estándar universal ~/.agents/skills actualizado"

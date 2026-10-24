@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 import { execFile as execFileCallback } from 'node:child_process';
 import { promisify } from 'node:util';
 import { analyzePipeline } from '../bin/pipeline-status.mjs';
-import { buildStepCommand, runPipelineLoop } from '../bin/pipeline-run.mjs';
+import { buildStepCommand, runPipelineLoop, runStep } from '../bin/pipeline-run.mjs';
 
 const execFile = promisify(execFileCallback);
 
@@ -81,6 +81,49 @@ test('buildStepCommand respeta overrides y variables de entorno OPENCODE_BIN/KIM
   }
 
   assert.throws(() => buildStepCommand('deploy'), /Paso desconocido/);
+});
+
+test('buildStepCommand genera comando de OpenCode cuando qaEngine es opencode (fallback a DeepSeek/Mimo)', () => {
+  const { command, args } = buildStepCommand('qa', {
+    qaEngine: 'opencode',
+    qaModel: 'opencode/deepseek-v4.1-flash-free',
+  });
+  assert.equal(command, process.env.OPENCODE_BIN || '/Volumes/JeanFiles/.opencode/bin/opencode');
+  assert.deepEqual(args.slice(0, 3), ['run', '--auto', '-c']);
+  assert.equal(args[3], '-m');
+  assert.equal(args[4], 'opencode/deepseek-v4.1-flash-free');
+  assert.match(args[5], /skill qa:/);
+});
+
+test('runStep activa fallback automático a OpenCode cuando Kimi reporta error de cuota', async () => {
+  const projectDir = await makeProject();
+  try {
+    const invocations = [];
+    const runner = async ({ step, qaEngine, qaModel }) => {
+      invocations.push({ step, qaEngine, qaModel });
+      if (step === 'qa' && qaEngine === 'kimi') {
+        return { exitCode: 1, quotaError: true, stderr: 'insufficient quota: token balance exhausted' };
+      }
+      return { exitCode: 0, stdout: 'QA completado' };
+    };
+
+    const result = await runStep('qa', {
+      projectDir,
+      runner,
+      qaEngine: 'kimi',
+      qaModel: 'opencode/deepseek-v4.1-flash-free',
+    });
+
+    assert.equal(result.fallbackFrom, 'kimi');
+    assert.equal(result.qaEngine, 'opencode');
+    assert.equal(result.exitCode, 0);
+    assert.equal(invocations.length, 2);
+    assert.equal(invocations[0].qaEngine, 'kimi');
+    assert.equal(invocations[1].qaEngine, 'opencode');
+    assert.equal(invocations[1].qaModel, 'opencode/deepseek-v4.1-flash-free');
+  } finally {
+    await cleanup(projectDir);
+  }
 });
 
 test('runPipelineLoop con NO_PLAN: sin 01-PLAN.md devuelve status NO_PLAN sin llamar al runner', async () => {
