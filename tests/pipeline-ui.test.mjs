@@ -160,17 +160,16 @@ test('GET / incluye el escenario Pixel Agents, selector de vista y animaciones (
     assert.match(body, /id="desk-coder"/);
     assert.match(body, /id="desk-qa"/);
     assert.match(body, /id="pixel-scene-badge"/);
-    // Clases de estado y keyframes de animación.
+    // Clases de estado (los keyframes DOM se retiraron en TASK-04).
     assert.match(body, /\.pixel-desk\.designing/);
     assert.match(body, /\.pixel-desk\.typing/);
     assert.match(body, /\.pixel-desk\.inspecting/);
     assert.match(body, /\.pixel-desk\.celebrating/);
     assert.match(body, /\.pixel-desk\.alert/);
-    assert.match(body, /@keyframes pixel-float/);
-    assert.match(body, /@keyframes pixel-type/);
-    assert.match(body, /@keyframes pixel-code-bars/);
-    assert.match(body, /@keyframes pixel-scan/);
-    assert.match(body, /@keyframes pixel-jump/);
+    assert.doesNotMatch(body, /@keyframes pixel-/);
+    assert.doesNotMatch(body, /\.pixel-avatar/);
+    assert.doesNotMatch(body, /\.pixel-monitor/);
+    assert.doesNotMatch(body, /\.screen-line/);
     // Lógica reactiva y selector de vista.
     assert.match(body, /function updatePixelOffice/);
     assert.match(body, /function applyViewMode/);
@@ -565,6 +564,22 @@ test('GET / monta el canvas de la oficina y carga /office.js como módulo', asyn
     assert.match(body, /from '\/office\.js'/);
     // Las tarjetas pixel-desk actuales siguen visibles (se reemplazan en TASK-02).
     assert.match(body, /id="desk-planner"/);
+  } finally {
+    await controller.close();
+  }
+});
+
+test('GET / incluye el botón de sonido 8-bit apagado por defecto (Pixel Office v3 TASK-04)', async () => {
+  const { controller, fetchJson } = await startServer({ defaultProjectDir: '.' });
+  try {
+    const { status, body } = await fetchJson('/');
+    assert.equal(status, 200);
+    assert.match(body, /id="office-sound-toggle"/);
+    assert.match(body, /aria-pressed="false"/);
+    assert.match(body, /try\s*\{\s*return localStorage\.getItem/);
+    assert.match(body, /try\s*\{\s*localStorage\.setItem/);
+    assert.match(body, /setSoundEnabled/);
+    assert.match(body, /unlockAudio/);
   } finally {
     await controller.close();
   }

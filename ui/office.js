@@ -397,16 +397,18 @@ export function createSceneDirector(initialState = 'idle') {
   /**
    * Registra un nuevo estado de escena y encola la coreografía que corresponda.
    * Los estados inválidos y los 'idle' momentáneos se ignoran.
+   * @returns {string|null} El tipo de transición detectada (valor de TRANSITIONS) o null.
    */
   function push(next, now) {
     void now;
-    if (!SCENE_STATES.includes(next) || next === 'idle') return;
+    if (!SCENE_STATES.includes(next) || next === 'idle') return null;
     const type = detectTransition(lastActive, next);
     lastActive = next;
     if (type) {
       pending.push(buildChoreography(type));
       while (pending.length > MAX_PENDING) pending.shift(); // descarta las más viejas
     }
+    return type;
   }
 
   /** Avanza la cola: cierra la coreografía terminada y arranca la siguiente. */
@@ -428,7 +430,7 @@ export function createSceneDirector(initialState = 'idle') {
     const elapsed = now - current.startedAt;
     const c = current.choreo;
     if (c.actor === null) {
-      return { type: c.type, actor: null, x: 0, y: 0, pose: null, prop: null };
+      return { type: c.type, actor: null, x: 0, y: 0, pose: null, prop: null, emotes: emotesAt(c, elapsed) };
     }
     const pos = interpolatePath(c.path, elapsed);
     const holding = elapsed >= c.path[2].t && elapsed < c.path[3].t;
@@ -440,7 +442,7 @@ export function createSceneDirector(initialState = 'idle') {
       const T = agentAnchor(map.desks.find((d) => d.id === c.target));
       prop = { kind: c.prop, x: T.x + 5, y: T.y + 1 }; // sobre el escritorio del target
     }
-    return { type: c.type, actor: c.actor, x: pos.x, y: pos.y, pose, prop };
+    return { type: c.type, actor: c.actor, x: pos.x, y: pos.y, pose, prop, emotes: emotesAt(c, elapsed) };
   }
 
   /** Devuelve una copia de los tipos de coreografía en espera. */
@@ -454,6 +456,168 @@ export function createSceneDirector(initialState = 'idle') {
   }
 
   return { push, tick, skipToEnd, snapshot, getPending, getLastActive };
+}
+
+// ==============================================================================
+// Emotes, confeti y jingle (puro, sin DOM)
+// ==============================================================================
+
+/** Emotes disponibles. */
+export const EMOTES = ['alert', 'angry', 'coffee', 'love'];
+/** Duración de un emote en ms. */
+export const EMOTE_MS = 900;
+
+/** Filas 1–6 (interior) de cada globo de emote; las filas 0 y 7–9 son comunes. */
+const EMOTE_INTERIORS = {
+  alert:  ['OWWWRWWWO', 'OWWWRWWWO', 'OWWWRWWWO', 'OWWWRWWWO', 'OWWWWWWWO', 'OWWWRWWWO'],
+  angry:  ['OWRRWRRWO', 'OWRWWWRWO', 'OWWWWWWWO', 'OWRWWWRWO', 'OWRRWRRWO', 'OWWWWWWWO'],
+  coffee: ['OWWTWTWWO', 'OWWWTWTWO', 'OWCCCCWWO', 'OWCCCCCWO', 'OWCCCCWWO', 'OWWCCWWWO'],
+  love:   ['OWRRWRRWO', 'OWRRRRRWO', 'OWRRRRRWO', 'OWWRRRWWO', 'OWWWRWWWO', 'OWWWWWWWO'],
+};
+
+/** Paleta compartida de los globos de emote. */
+const EMOTE_PALETTE = { O: '#151a24', W: '#f4f1e8', R: '#e04848', C: '#7a4a2e', T: '#c0c8d8' };
+
+/**
+ * Construye el sprite de un emote (globo de 9×10).
+ * @param {string} kind Un valor de EMOTES.
+ * @returns {{rows: string[], palette: Record<string,string>}|null} null si kind no está en EMOTES.
+ */
+export function buildEmoteSprite(kind) {
+  const interior = EMOTE_INTERIORS[kind];
+  if (!interior) return null;
+  return {
+    rows: ['.OOOOOOO.', ...interior, '.OOOWOOO.', '...OWO...', '....O....'],
+    palette: EMOTE_PALETTE,
+  };
+}
+
+/**
+ * Agenda de emotes de una coreografía (tiempos relativos a su inicio, ms, enteros).
+ * @param {object|null} choreo Resultado de buildChoreography.
+ * @returns {Array<{desk: string, kind: string, start: number, end: number}>}
+ */
+export function buildEmoteSchedule(choreo) {
+  if (!choreo) return [];
+  const clip = (ms) => Math.min(ms, choreo.duration);
+  switch (choreo.type) {
+    case 'handoff-plan':
+      return [
+        { desk: choreo.target, kind: 'alert', start: choreo.dropT, end: clip(choreo.dropT + EMOTE_MS) },
+      ];
+    case 'handoff-code':
+      return [
+        { desk: choreo.target, kind: 'alert', start: choreo.dropT, end: clip(choreo.dropT + EMOTE_MS) },
+        { desk: choreo.actor, kind: 'coffee', start: choreo.path[4].t, end: choreo.duration },
+      ];
+    case 'return-fix':
+      return [
+        { desk: choreo.actor, kind: 'angry', start: 0, end: clip(EMOTE_MS) },
+        { desk: choreo.target, kind: 'alert', start: choreo.dropT, end: clip(choreo.dropT + EMOTE_MS) },
+      ];
+    case 'celebrate':
+      return DESK_IDS.map((desk) => ({ desk, kind: 'love', start: 0, end: clip(CELEBRATE_MS) }));
+    default:
+      return [];
+  }
+}
+
+/** Emotes visibles en `elapsedMs` (start <= t < end). [] si choreo es null o t no es finito. */
+export function emotesAt(choreo, elapsedMs) {
+  if (!choreo || !Number.isFinite(elapsedMs)) return [];
+  return buildEmoteSchedule(choreo)
+    .filter((e) => elapsedMs >= e.start && elapsedMs < e.end)
+    .map((e) => ({ desk: e.desk, kind: e.kind }));
+}
+
+/** Nº de partículas de confeti. */
+export const CONFETTI_COUNT = 48;
+/** Duración del confeti en ms. */
+export const CONFETTI_MS = 2600;
+/** Gravedad del confeti en px/s². */
+export const CONFETTI_GRAVITY = 120;
+/** Colores del confeti. */
+export const CONFETTI_COLORS = ['#4cc2ff', '#ffb84c', '#62e3e3', '#34d378', '#ff5b5b', '#f4f1e8'];
+
+/** PRNG mulberry32: devuelve () => número en [0, 1). Mismo seed → misma secuencia. */
+export function createRng(seed) {
+  let a = seed >>> 0;
+  return function rng() {
+    a |= 0;
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/**
+ * Crea las partículas de confeti (determinista por seed).
+ * @returns {Array<{x0: number, y0: number, vx: number, vy: number, color: string, size: number, phase: number}>}
+ */
+export function createConfetti(seed = 1, count = CONFETTI_COUNT) {
+  const rng = createRng(seed);
+  const particles = [];
+  for (let i = 0; i < count; i++) {
+    particles.push({
+      x0: Math.floor(rng() * INTERNAL_WIDTH),
+      y0: -2 - Math.floor(rng() * 40),
+      vx: (rng() - 0.5) * 30,
+      vy: 10 + rng() * 30,
+      color: CONFETTI_COLORS[Math.floor(rng() * CONFETTI_COLORS.length)],
+      size: rng() < 0.5 ? 1 : 2,
+      phase: rng() * Math.PI * 2,
+    });
+  }
+  return particles;
+}
+
+/** Posiciones enteras visibles en elapsedMs; [] si elapsedMs < 0, no finito o >= CONFETTI_MS. */
+export function confettiAt(particles, elapsedMs) {
+  if (!Number.isFinite(elapsedMs) || elapsedMs < 0 || elapsedMs >= CONFETTI_MS) return [];
+  const t = elapsedMs / 1000;
+  const visible = [];
+  for (const p of particles) {
+    const x = Math.round(p.x0 + p.vx * t + 2 * Math.sin(t * 6 + p.phase));
+    const y = Math.round(p.y0 + p.vy * t + 0.5 * CONFETTI_GRAVITY * t * t);
+    if (x >= 0 && x < INTERNAL_WIDTH && y >= 0 && y < INTERNAL_HEIGHT) {
+      visible.push({ x, y, color: p.color, size: p.size });
+    }
+  }
+  return visible;
+}
+
+/** Arpegio Do mayor ascendente (C5 E5 G5 C6). start/dur en segundos. */
+export const JINGLE_NOTES = [
+  { freq: 523.25, start: 0, dur: 0.11 },
+  { freq: 659.25, start: 0.12, dur: 0.11 },
+  { freq: 783.99, start: 0.24, dur: 0.11 },
+  { freq: 1046.5, start: 0.36, dur: 0.32 },
+];
+/** Ganancia máxima del jingle. */
+export const JINGLE_GAIN = 0.05;
+
+/**
+ * Programa el jingle sobre un AudioContext (o un doble de test con la misma forma).
+ * @returns {number} Nº de notas programadas (0 si ac es falsy).
+ */
+export function scheduleJingle(ac, notes = JINGLE_NOTES) {
+  if (!ac) return 0;
+  for (const note of notes) {
+    const t = ac.currentTime + note.start;
+    const osc = ac.createOscillator();
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(note.freq, t);
+    const g = ac.createGain();
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(JINGLE_GAIN, t + 0.01);
+    g.gain.linearRampToValueAtTime(0, t + note.dur);
+    osc.connect(g);
+    g.connect(ac.destination);
+    osc.start(t);
+    osc.stop(t + note.dur + 0.02);
+  }
+  return notes.length;
 }
 
 // ==============================================================================
@@ -626,11 +790,20 @@ function drawProp(ctx, kind, x, y) {
   }
 }
 
+/** Pinta un emote (globo de 9×10) sobre la cabeza de un agente. */
+function drawEmote(ctx, kind, x, y) {
+  const emote = buildEmoteSprite(kind);
+  if (!emote) return;
+  drawSprite(ctx, emote.rows, emote.palette, x, y);
+}
+
 /**
  * Monta la oficina pixel-art sobre un <canvas> existente.
  * @param {HTMLCanvasElement} canvas Canvas destino.
  * @param {{host?: HTMLElement}} [options] `host` opcional para medir el espacio disponible.
- * @returns {{render: Function, resize: Function, destroy: Function, setScene: Function, map: object}|null}
+ * @returns {{render: Function, resize: Function, destroy: Function, setScene: Function,
+ *   setSoundEnabled: Function, isSoundEnabled: Function, unlockAudio: Function,
+ *   playJingle: Function, map: object}|null}
  *   `null` si el canvas no ofrece contexto 2D (sin lanzar excepciones).
  */
 export function createOffice(canvas, options = {}) {
@@ -660,6 +833,46 @@ export function createOffice(canvas, options = {}) {
   // Accesibilidad: sin animación si el usuario pidió reduced-motion.
   const motionQuery = window.matchMedia?.('(prefers-reduced-motion: reduce)') ?? null;
   let reducedMotion = !!motionQuery?.matches;
+
+  // Confeti y sonido (el sonido está apagado por defecto; el AudioContext es perezoso).
+  let confetti = [];
+  let confettiStart = null;
+  let soundEnabled = false;
+  let audioCtx = null;
+
+  /** Crea/reanuda el AudioContext. Llamar dentro de un gesto del usuario. */
+  function unlockAudio() {
+    if (!audioCtx) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return null;
+      try {
+        audioCtx = new AC();
+      } catch {
+        return null;
+      }
+    }
+    if (audioCtx.state === 'suspended') audioCtx.resume?.().catch?.(() => {});
+    return audioCtx;
+  }
+
+  function setSoundEnabled(on) {
+    soundEnabled = !!on;
+  }
+
+  function isSoundEnabled() {
+    return soundEnabled;
+  }
+
+  function playJingle() {
+    if (!soundEnabled) return;
+    const ac = unlockAudio();
+    if (!ac) return;
+    try {
+      scheduleJingle(ac);
+    } catch {
+      /* audio no disponible: silencio */
+    }
+  }
 
   function render(now = performance.now()) {
     director.tick(now);
@@ -691,6 +904,35 @@ export function createOffice(canvas, options = {}) {
       }
     }
     if (snap?.prop) drawProp(ctx, snap.prop.kind, snap.prop.x, snap.prop.y);
+    // Emotes sobre la cabeza del agente (el caminante usa su posición actual).
+    for (const e of snap?.emotes ?? []) {
+      let bx;
+      let by;
+      if (snap.actor === e.desk) {
+        bx = snap.x;
+        by = snap.y;
+      } else {
+        const desk = map.desks.find((d) => d.id === e.desk);
+        if (!desk) continue;
+        const a = agentAnchor(desk);
+        bx = a.x;
+        by = a.y;
+      }
+      drawEmote(ctx, e.kind, bx + 3, Math.max(0, by - 11));
+    }
+    // Confeti al final: queda por encima de todo.
+    if (confettiStart !== null) {
+      const elapsed = now - confettiStart;
+      if (elapsed >= CONFETTI_MS) {
+        confettiStart = null;
+        confetti = [];
+      } else {
+        for (const p of confettiAt(confetti, elapsed)) {
+          ctx.fillStyle = p.color;
+          ctx.fillRect(p.x, p.y, p.size, p.size);
+        }
+      }
+    }
   }
 
   /**
@@ -700,7 +942,15 @@ export function createOffice(canvas, options = {}) {
   function setScene(state, context = {}) {
     void context;
     sceneState = SCENE_STATES.includes(state) ? state : 'idle';
-    director.push(sceneState, performance.now());
+    const now = performance.now();
+    const type = director.push(sceneState, now);
+    if (type === 'celebrate') {
+      if (!reducedMotion && !document.hidden) {
+        confetti = createConfetti((now | 0) || 1);
+        confettiStart = now;
+      }
+      playJingle(); // solo suena si el usuario activó el sonido (opt-in)
+    }
     if (reducedMotion || document.hidden) director.skipToEnd();
     syncLoop();
     render();
@@ -745,14 +995,22 @@ export function createOffice(canvas, options = {}) {
   }
 
   function onVisibility() {
-    if (document.hidden) director.skipToEnd(); // al volver, la escena ya está en el estado final
+    if (document.hidden) {
+      director.skipToEnd(); // al volver, la escena ya está en el estado final
+      confettiStart = null;
+      confetti = [];
+    }
     syncLoop();
     if (!document.hidden) render();
   }
 
   function onMotionChange() {
     reducedMotion = !!motionQuery?.matches;
-    if (reducedMotion) director.skipToEnd();
+    if (reducedMotion) {
+      director.skipToEnd();
+      confettiStart = null;
+      confetti = [];
+    }
     syncLoop();
     render();
   }
@@ -778,7 +1036,19 @@ export function createOffice(canvas, options = {}) {
     window.removeEventListener('resize', resize);
     document.removeEventListener('visibilitychange', onVisibility);
     motionQuery?.removeEventListener?.('change', onMotionChange);
+    audioCtx?.close?.().catch?.(() => {});
+    audioCtx = null;
   }
 
-  return { render, resize, destroy, setScene, map };
+  return {
+    render,
+    resize,
+    destroy,
+    setScene,
+    setSoundEnabled,
+    isSoundEnabled,
+    unlockAudio,
+    playJingle,
+    map,
+  };
 }
