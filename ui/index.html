@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>🛰️ Multi-Agent Mission Control</title>
+<style>
+  :root {
+    --bg: #0b0f14;
+    --panel: #111823;
+    --panel-2: #16202e;
+    --border: #24344a;
+    --text: #d7e3f4;
+    --muted: #7d93b2;
+    --accent: #4cc2ff;
+    --green: #34d378;
+    --red: #ff5b5b;
+    --amber: #ffb84c;
+    --cyan: #62e3e3;
+    --font: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text); font-family: var(--font);
+    font-size: 13px; display: flex; flex-direction: column; height: 100vh; overflow: hidden;
+  }
+  /* ---------- Header ---------- */
+  header {
+    background: linear-gradient(180deg, #0e1520, #0b1119);
+    border-bottom: 1px solid var(--border);
+    padding: 10px 16px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  }
+  header h1 { font-size: 15px; margin: 0 8px 0 0; letter-spacing: 1px; white-space: nowrap; }
+  .hdr-field { display: flex; align-items: center; gap: 6px; }
+  .hdr-field label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .5px; }
+  select, input[type="text"] {
+    background: var(--panel-2); color: var(--text); border: 1px solid var(--border);
+    border-radius: 6px; padding: 5px 8px; font-family: var(--font); font-size: 12px; outline: none;
+  }
+  input#manual-dir { width: 260px; }
+  .toggle { display: flex; align-items: center; gap: 6px; cursor: pointer; color: var(--muted); font-size: 12px; }
+  .toggle input { accent-color: var(--accent); }
+  .hdr-actions { margin-left: auto; display: flex; gap: 6px; }
+  button {
+    background: var(--panel-2); color: var(--text); border: 1px solid var(--border);
+    border-radius: 6px; padding: 6px 10px; font-family: var(--font); font-size: 12px; cursor: pointer;
+    transition: border-color .15s, background .15s; white-space: nowrap;
+  }
+  button:hover { border-color: var(--accent); }
+  button.primary { background: #103a52; border-color: #1d5b7f; color: #9fdcff; }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  /* ---------- 3 columnas ---------- */
+  .mission-grid {
+    flex: 1; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;
+    padding: 10px; min-height: 0;
+  }
+  .column {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+    display: flex; flex-direction: column; min-height: 0; overflow: hidden;
+  }
+  .column > h2 {
+    margin: 0; padding: 10px 12px; font-size: 12px; letter-spacing: 1px; text-transform: uppercase;
+    border-bottom: 1px solid var(--border); color: var(--muted); display: flex; align-items: center; gap: 8px;
+  }
+  .column .body { padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; flex: 1; min-height: 0; overflow: auto; }
+  .badge {
+    font-size: 10px; padding: 2px 7px; border-radius: 999px; border: 1px solid var(--border);
+    color: var(--muted); letter-spacing: .5px; white-space: nowrap;
+  }
+  .badge.ok { color: var(--green); border-color: var(--green); }
+  .badge.bad { color: var(--red); border-color: var(--red); }
+  .badge.warn { color: var(--amber); border-color: var(--amber); }
+  /* Columna 1: plan */
+  .tabs { display: flex; gap: 4px; }
+  .tab {
+    font-size: 11px; padding: 4px 8px; border: 1px solid var(--border); border-radius: 6px 6px 0 0;
+    cursor: pointer; color: var(--muted); background: var(--panel-2);
+  }
+  .tab.active { color: var(--accent); border-color: var(--accent); }
+  textarea {
+    flex: 1; width: 100%; background: var(--panel-2); color: var(--text);
+    border: 1px solid var(--border); border-radius: 6px; font-family: var(--font);
+    font-size: 12px; padding: 8px; resize: none; outline: none; min-height: 120px;
+  }
+  textarea:focus { border-color: var(--accent); }
+  .row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  pre.viewer {
+    background: var(--panel-2); border: 1px solid var(--border); border-radius: 6px;
+    padding: 8px; margin: 0; font-size: 11.5px; line-height: 1.5; white-space: pre-wrap;
+    word-break: break-word; overflow: auto; flex: 1; min-height: 100px; color: var(--text);
+  }
+  /* Columna 3: semáforo */
+  #qa-semaphore {
+    width: 92px; height: 92px; border-radius: 50%; margin: 4px auto;
+    background: #2b3646; border: 3px solid var(--border); transition: background .25s, box-shadow .25s;
+    display: flex; align-items: center; justify-content: center; font-size: 10px; color: transparent;
+  }
+  #qa-semaphore.green { background: var(--green); box-shadow: 0 0 22px var(--green); }
+  #qa-semaphore.red { background: var(--red); box-shadow: 0 0 22px var(--red); animation: pulse-red 1.4s infinite; }
+  #qa-semaphore.amber { background: var(--amber); box-shadow: 0 0 22px var(--amber); animation: pulse-amber 1s infinite; }
+  @keyframes pulse-red { 50% { filter: brightness(1.25); } }
+  @keyframes pulse-amber { 50% { filter: brightness(1.35); } }
+  .engine-note { color: var(--muted); font-size: 10.5px; }
+  /* ---------- Cajón Git Diff ---------- */
+  #git-drawer {
+    border-top: 1px solid var(--border); background: var(--panel);
+    margin: 0 10px 10px; border-radius: 10px; overflow: hidden;
+  }
+  #git-drawer > summary {
+    cursor: pointer; padding: 8px 14px; font-size: 12px; letter-spacing: 1px;
+    text-transform: uppercase; color: var(--muted); user-select: none;
+  }
+  #git-drawer > summary:hover { color: var(--accent); }
+  .git-body { display: none; padding: 0 14px 12px; }
+  #git-drawer[open] .git-body { display: block; }
+  #git-meta { color: var(--muted); font-size: 11px; margin-bottom: 6px; }
+  #git-diff {
+    max-height: 30vh; overflow: auto; background: var(--panel-2); border: 1px solid var(--border);
+    border-radius: 6px; padding: 8px; font-size: 11.5px; line-height: 1.45;
+  }
+  .diff-line { white-space: pre-wrap; word-break: break-word; }
+  .diff-add { color: var(--green); }
+  .diff-del { color: var(--red); }
+  .diff-hunk { color: var(--cyan); }
+  .diff-meta { color: var(--muted); }
+  /* ---------- Bitácora de eventos ---------- */
+  .event-log {
+    background: #0a0e14; border: 1px solid var(--border); border-radius: 6px;
+    font-size: 10.5px; color: var(--muted); padding: 6px 8px; max-height: 110px; overflow: auto;
+  }
+  .event-log div { padding: 1px 0; }
+  .event-log b { color: var(--accent); font-weight: normal; }
+  .hidden { display: none !important; }
+  @media (max-width: 900px) {
+    .mission-grid { grid-template-columns: 1fr; overflow: auto; }
+    body { overflow: auto; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>🛰️ Multi-Agent Mission Control</h1>
+  <div class="hdr-field">
+    <label>Proyecto</label>
+    <select id="project-select"></select>
+    <input type="text" id="manual-dir" placeholder="Ruta manual del proyecto..." spellcheck="false">
+    <button id="load-dir-btn" title="Cargar ruta manual">↩︎</button>
+  </div>
+  <div class="hdr-field">
+    <label>Motor QA</label>
+    <select id="qa-engine-select">
+      <option value="kimi">kimi (Kimi Code + Fallback Auto DeepSeek)</option>
+      <option value="opencode">opencode (DeepSeek Free directo)</option>
+    </select>
+  </div>
+  <label class="toggle" title="Dispara el pipeline automáticamente al guardar 01-PLAN.md">
+    <input type="checkbox" id="auto-watch-toggle">
+    <span>⚡ Auto-Pilot al guardar 01-PLAN.md</span>
+  </label>
+  <div class="hdr-actions">
+    <button class="primary" data-action="loop">🚀 Piloto Automático (Loop)</button>
+    <button data-action="code">💻 Ejecutar Code</button>
+    <button data-action="qa">🔍 Auditar QA</button>
+    <button data-action="fix">🔧 Ejecutar Fix</button>
+  </div>
+</header>
+
+<main class="mission-grid">
+  <!-- Columna 1: CEREBRO -->
+  <section class="column" id="col-planner">
+    <h2>🧠 El Cerebro (Planner — Argon) <span class="badge" id="plan-badge">…</span></h2>
+    <div class="body">
+      <div class="tabs">
+        <div class="tab active" data-tab="plan">01-PLAN.md</div>
+        <div class="tab" data-tab="roadmap">ROADMAP.md</div>
+      </div>
+      <textarea id="plan-editor" spellcheck="false" placeholder="Aquí se carga el contenido de .pipeline/01-PLAN.md (o ROADMAP.md)..."></textarea>
+      <div class="row">
+        <button id="save-plan-btn" class="primary">💾 Guardar 01-PLAN.md</button>
+        <button id="template-plan-btn">📝 Plantilla rápida</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Columna 2: CODER -->
+  <section class="column" id="col-coder">
+    <h2>⚡ El Obrero (Coder — OpenCode GLM 5.3) <span class="badge" id="iterate-badge">Iteración: —</span></h2>
+    <div class="body">
+      <div class="row">
+        <span class="badge" id="handoff-badge">02-HANDOFF.md: …</span>
+        <span class="badge" id="run-badge">Estado: EN ESPERA</span>
+      </div>
+      <div class="tabs">
+        <div class="tab active" data-tab="handoff">02-HANDOFF.md</div>
+        <div class="tab" data-tab="logs">📑 Logs en vivo</div>
+      </div>
+      <pre class="viewer" id="handoff-viewer">Cargando…</pre>
+      <pre class="viewer hidden" id="log-viewer"></pre>
+      <div class="event-log" id="event-log" title="Bitácora de eventos SSE"></div>
+    </div>
+  </section>
+
+  <!-- Columna 3: AUDITOR -->
+  <section class="column" id="col-qa">
+    <h2>🛡️ El Auditor (QA — Kimi Code / DeepSeek) <span class="badge" id="qa-badge">EN ESPERA</span></h2>
+    <div class="body">
+      <div id="qa-semaphore" title="Semáforo QA"></div>
+      <div class="engine-note" id="engine-note"></div>
+      <pre class="viewer" id="qa-report-viewer">03-QA-REPORT.md aún no existe.</pre>
+    </div>
+  </section>
+</main>
+
+<details id="git-drawer">
+  <summary>🔀 Visor Git Diff unificado</summary>
+  <div class="git-body">
+    <div id="git-meta"></div>
+    <div id="git-diff"></div>
+  </div>
+</details>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  const state = { projectDir: '' };
+
+  // ---------- Utilidades ----------
+  async function api(path, opts = {}) {
+    const res = await fetch(path, {
+      headers: opts.body ? { 'Content-Type': 'application/json' } : undefined,
+      ...opts,
+    });
+    return res.json();
+  }
+  async function refreshState() {
+    if (!state.projectDir) return;
+    const s = await api(`/api/state?dir=${encodeURIComponent(state.projectDir)}`);
+    render(s);
+  }
+
+  // ---------- Render de las 3 columnas ----------
+  function attemptBadge(el, exists, baseText) {
+    el.textContent = `${baseText} ${exists ? '✅ EXISTE' : '❌ FALTANTE'}`;
+    el.className = 'badge ' + (exists ? 'ok' : 'bad');
+  }
+  function render(s) {
+    const st = s.status || {};
+    attemptBadge($('plan-badge'), st.planExists, '01-PLAN.md');
+    attemptBadge($('handoff-badge'), st.handoffExists, '02-HANDOFF.md');
+    $('iterate-badge').textContent = 'Iteración: ' + (s.files?.handoff?.match(/\*\*Iteración:\*\*\s+(\S+)/)?.[1] ?? st.iteration ?? '—');
+
+    // Columna 1 (no machacar el editor si el usuario está escribiendo)
+    const editor = $('plan-editor');
+    if (document.activeElement !== editor) {
+      editor.value = activeTab === 'plan' ? (s.files.plan ?? '') : (s.files.roadmap ?? '');
+    }
+    // Columna 2
+    $('handoff-viewer').textContent = s.files.handoff ?? '02-HANDOFF.md aún no existe.';
+    $('log-viewer').textContent = s.files.latestLog ?? 'Sin logs todavía.';
+    // Columna 3
+    const qaText = s.files.qaReport ?? '3-QA-REPORT.md aún no existe.';
+    $('qa-report-viewer').textContent = qaText;
+    updateSemaphore(st.qaStatus, s.activeRun);
+    $('engine-note').textContent = `Motor QA: ${s.bins?.qaEngine ?? 'kimi'} · Modelo fallback: ${s.bins?.qaModel ?? '—'}`;
+    // Git drawer
+    $('git-meta').textContent =
+      (s.git?.isRepo ? `Rama: ${s.git.branch ?? '(desconocida)'} · Archivos modificados:\n${s.git.statusShort || '(sin cambios)'}` : 'No es un repositorio git.');
+    $('git-diff').innerHTML = renderDiff(s.git?.diff ?? '');
+  }
+  function updateSemaphore(qaStatus, activeRun) {
+    const el = $('qa-semaphore'), badge = $('qa-badge');
+    el.className = '';
+    if (activeRun?.running) {
+      el.classList.add('amber');
+      badge.textContent = `AUDITANDO/EJECUTANDO (${activeRun.step ?? activeRun.action})`;
+      badge.className = 'badge warn';
+      return;
+    }
+    if (qaStatus === 'APPROVED') {
+      el.classList.add('green');
+      badge.textContent = 'APPROVED';
+      badge.className = 'badge ok';
+    } else if (qaStatus === 'CHANGES_REQUIRED') {
+      el.classList.add('red');
+      badge.textContent = 'CHANGES REQUIRED';
+      badge.className = 'badge bad';
+    } else {
+      badge.textContent = 'EN ESPERA';
+      badge.className = 'badge';
+    }
+  }
+  function esc(t) { const d = document.createElement('span'); d.textContent = t ?? ''; return d.innerHTML; }
+  function renderDiff(diff) {
+    if (!diff) return '<div class="diff-meta">(sin cambios en el diff)</div>';
+    return diff.split('\n').map((line) => {
+      const cls = line.startsWith('+') ? 'diff-add'
+        : line.startsWith('-') ? 'diff-del'
+        : line.startsWith('@@') ? 'diff-hunk'
+        : ['diff --git', 'index ', '--- ', '+++ '].some((p) => line.startsWith(p)) ? 'diff-meta' : '';
+      return `<div class="diff-line ${cls}">${esc(line)}</div>`;
+    }).join('');
+  }
+
+  // ---------- Eventos ----------
+  let activeTab = 'plan';
+  document.querySelectorAll('.tab').forEach((tab) => {
+    tab.addEventListener('click', () => {
+      const scope = tab.closest('.column');
+      scope.querySelectorAll('.tab').forEach((t) => t.classList.remove('active'));
+      tab.classList.add('active');
+      if (scope.id === 'col-planner') {
+        activeTab = tab.dataset.tab;
+      }
+      if (scope.id === 'col-coder') {
+        const isLogs = tab.dataset.tab === 'logs';
+        $('log-viewer').classList.toggle('hidden', !isLogs);
+        $('handoff-viewer').classList.toggle('hidden', isLogs);
+      }
+      refreshState();
+    });
+  });
+
+  $('save-plan-btn').addEventListener('click', async () => {
+    const content = $('plan-editor').value;
+    const body = activeTab === 'plan'
+      ? { dir: state.projectDir, content }
+      : { dir: state.projectDir, content, target: 'ROADMAP.md' };
+    const resp = await api('/api/plan', { method: 'POST', body: JSON.stringify(body) });
+    if (!resp.ok) alert('Error guardando el plan: ' + (resp.error || ''));
+    await refreshState();
+  });
+
+  $('template-plan-btn').addEventListener('click', () => {
+    $('plan-editor').value = `# Plan de Implementación Multi-Agente
+
+- **Tarea:** <describe aquí tu tarea>
+- **Fecha:** ${new Date().toLocaleString('es')}
+- **Estado:** READY_FOR_CODE
+
+## 1. Contexto y Objetivo
+<describe el objetivo>
+
+## 2. Archivos a Crear o Modificar
+- Ruta/archivo.js (Crear/Modificar — detalle)
+
+## 3. Pasos de Implementación
+1. Paso uno
+2. Paso dos
+
+## 4. Comandos de Verificación Obligatorios
+- npm test (u otro verificador)
+
+## 5. Criterios de Aceptación
+- [ ] Criterio uno
+`;
+  });
+
+  $('qa-engine-select').addEventListener('change', async (e) => {
+    await api('/api/settings', { method: 'POST', body: JSON.stringify({ qaEngine: e.target.value }) });
+    await refreshState();
+  });
+  $('auto-watch-toggle').addEventListener('change', async (e) => {
+    await api('/api/settings', { method: 'POST', body: JSON.stringify({ autoWatchPlan: e.target.checked }) });
+  });
+
+  document.querySelectorAll('.hdr-actions button').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const action = btn.dataset.action;
+      const body = { dir: state.projectDir, action, wait: false };
+      if (action === 'loop') body.maxRetries = 3;
+      const resp = await api('/api/run', { method: 'POST', body: JSON.stringify(body) });
+      if (!resp.ok) alert(resp.error || 'Error al iniciar la acción');
+      await refreshState();
+    });
+  });
+
+  // Selector de proyecto + ruta manual
+  $('load-dir-btn').addEventListener('click', async () => {
+    const manual = $('manual-dir').value.trim();
+    if (manual) await selectProject(manual);
+  });
+  $('project-select').addEventListener('change', (e) => selectProject(e.target.value));
+  async function selectProject(dir) {
+    state.projectDir = dir;
+    await refreshState();
+  }
+  async function loadProjects() {
+    const resp = await api('/api/projects');
+    const select = $('project-select');
+    select.innerHTML = '';
+    for (const p of resp.projects) {
+      const opt = document.createElement('option');
+      opt.value = p.path; opt.textContent = `${p.name}${p.hasPipeline ? ' 🚀' : ''}`;
+      select.appendChild(opt);
+    }
+    state.projectDir = resp.defaultProjectDir;
+    if (resp.projects.some((p) => p.path === resp.defaultProjectDir)) select.value = resp.defaultProjectDir;
+    await refreshState();
+  }
+
+  // ---------- SSE en tiempo real ----------
+  function appendEvent(name, extra) {
+    const div = document.createElement('div');
+    div.innerHTML = `<b>${esc(new Date().toLocaleTimeString())}</b> · ${esc(name)}${extra ? ' ' + esc(extra) : ''}`;
+    const log = $('event-log');
+    log.prepend(div);
+    while (log.children.length > 60) log.lastChild.remove();
+  }
+  function connectSSE() {
+    const es = new EventSource('/api/events');
+    es.onmessage = async (msg) => {
+      let event = {};
+      try { event = JSON.parse(msg.data); } catch {}
+      appendEvent(event.type, event.step ?? event.file ?? event.status ?? '');
+      if (['pipeline_file_changed', 'plan_saved', 'settings_updated', 'step_end', 'run_end', 'run_start'].includes(event.type)) {
+        await refreshState();
+      }
+    };
+    es.onerror = () => { es.close(); setTimeout(connectSSE, 1500); };
+  }
+
+  // ---------- Arranque ----------
+  connectSSE();
+  loadProjects();
+  setInterval(refreshState, 7000); // refresco de respaldo por si el watcher falla
+})();
+</script>
+</body>
+</html>

@@ -209,7 +209,8 @@ fi
 mkdir -p "$LOCAL_BIN"
 safe_link "$BIN_SRC/pipeline-status.mjs" "$LOCAL_BIN/pipeline-status"
 safe_link "$BIN_SRC/pipeline-run.mjs" "$LOCAL_BIN/pipeline-run"
-echo "✅ Binarios CLI enlazados en $LOCAL_BIN (pipeline-status, pipeline-run)"
+safe_link "$BIN_SRC/pipeline-ui.mjs" "$LOCAL_BIN/pipeline-ui"
+echo "✅ Binarios CLI enlazados en $LOCAL_BIN (pipeline-status, pipeline-run, pipeline-ui)"
 
 # ------------------------------------------------------------------------------
 # 6. Gitignore global para aislar .pipeline/ localmente

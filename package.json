@@ -5,11 +5,13 @@
   "description": "CLI para inspeccionar el estado del flujo Multi-Agente (.pipeline/)",
   "bin": {
     "pipeline-status": "./bin/pipeline-status.mjs",
-    "pipeline-run": "./bin/pipeline-run.mjs"
+    "pipeline-run": "./bin/pipeline-run.mjs",
+    "pipeline-ui": "./bin/pipeline-ui.mjs"
   },
   "scripts": {
-    "test": "node --test tests/pipeline-status.test.mjs tests/pipeline-run.test.mjs",
+    "test": "node --test tests/pipeline-status.test.mjs tests/pipeline-run.test.mjs tests/pipeline-ui.test.mjs",
     "status": "node ./bin/pipeline-status.mjs",
-    "run": "node ./bin/pipeline-run.mjs"
+    "run": "node ./bin/pipeline-run.mjs",
+    "ui": "node ./bin/pipeline-ui.mjs"
   }
 }
