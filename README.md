@@ -41,8 +41,8 @@ También soporta flags no interactivos:
 * **Fase 3:** `/qa` (`qa`) → Audita el `git diff` y escribe `.pipeline/03-QA-REPORT.md`.
 * **Fase 4:** `/close` (`pipeline-close`) → Revisa el cierre, marca `[x] TASK-XX` en el roadmap y archiva en `.pipeline/archive/`.
 
-### Opción B: Orquestador 100% Automático (`pipeline-auto` / `pipeline-run`)
-Hablas únicamente con el Cerebro (Antigravity) usando la skill `pipeline-auto`, o ejecutas por CLI:
+### Opción B: Orquestador 100% Automático (`pipeline-auto` / `/auto` / `pipeline-run`)
+Hablas únicamente con el Cerebro (Antigravity usando la skill `pipeline-auto`, o Claude Code usando el comando `/auto`), o ejecutas directo por CLI:
 ```bash
 pipeline-run loop . --max-retries 3
 ```

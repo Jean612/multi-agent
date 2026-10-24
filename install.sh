@@ -143,7 +143,7 @@ if [ -n "$CLAUDE_TARGET_DIR" ]; then
     fi
   done
 
-  echo "⚡ Enlazando slash commands (/epic, /plan, /code, /fix, /qa, /close) en Claude Code..."
+  echo "⚡ Enlazando slash commands (/epic, /plan, /auto, /code, /fix, /qa, /close) en Claude Code..."
   for cmd_file in "$COMMANDS_SRC"/*.md; do
     if [ -f "$cmd_file" ]; then
       cmd_name="$(basename "$cmd_file")"
@@ -236,6 +236,7 @@ if [ "$MODE" = "claude" ]; then
   echo "En tu terminal de Claude Code ($CLAUDE_TARGET_DIR) tienes disponible:"
   echo "  • /epic   -> Planificar y refinar la épica (.pipeline/ROADMAP.md)"
   echo "  • /plan   -> Crear el plan técnico de la tarea (.pipeline/01-PLAN.md)"
+  echo "  • /auto   -> Modo 100% automático (Plan + pipeline-run loop + Close)"
   echo "  • /code   -> Implementar el plan y generar handoff (.pipeline/02-HANDOFF.md)"
   echo "  • /fix    -> Corregir observaciones de QA"
   echo "  • /qa     -> Auditar el git diff en modo ahorro de tokens"
