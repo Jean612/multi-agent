@@ -252,6 +252,13 @@
   .office-floor .pixel-desk { padding: 6px 8px; gap: 4px; }
   .office-floor .desk-stage { min-height: 0; }
   .office-floor .speech-bubble { font-size: 10.5px; padding: 3px 6px; }
+  /* Vista mixta ancha: franja al costado del canvas para que crezca sin comerse las columnas.
+     El breakpoint coincide con SIDE_BY_SIDE_QUERY de office.js. */
+  @media (min-width: 1101px) {
+    .pixel-office:not(.full-view) .office-stage { display: flex; align-items: center; gap: 12px; }
+    .pixel-office:not(.full-view) .office-canvas-wrap { margin-bottom: 0; flex: 0 0 auto; }
+    .pixel-office:not(.full-view) .office-floor { flex: 1; min-width: 0; grid-template-columns: 1fr; gap: 6px; }
+  }
   /* ---------- Responsivo ---------- */
   html, body { max-width: 100%; }
   header { gap: 10px; }
@@ -321,6 +328,7 @@
         title="Activar jingle 8-bit">🔇</button>
     </span>
   </div>
+  <div class="office-stage">
   <div class="office-canvas-wrap">
     <canvas id="office-canvas" width="320" height="180" role="img"
       aria-label="Oficina pixel-art con los escritorios de Argon, OpenCode y Kimi"></canvas>
@@ -358,6 +366,7 @@
         <div class="speech-bubble" id="bubble-qa">Sin diff por auditar</div>
       </div>
     </article>
+  </div>
   </div>
 </section>
 

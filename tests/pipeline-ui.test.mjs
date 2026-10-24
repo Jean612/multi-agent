@@ -636,6 +636,29 @@ test('buildOfficeMap y computeScale son puros e importables en Node', async () =
   assert.equal(office.computeScale(-5, 0), 1);
 });
 
+test('computeScale escala en pasos nítidos según devicePixelRatio y la vista mixta pone la franja al costado', async () => {
+  const office = await import('../ui/office.js');
+  // dpr 2: pasos de 0.5× CSS (cada píxel lógico = entero de píxeles físicos).
+  assert.equal(office.computeScale(480, 270, 2), 1.5);
+  assert.equal(office.computeScale(500, 300, 2), 1.5);
+  assert.equal(office.computeScale(640, 360, 2), 2);
+  assert.equal(office.computeScale(500, 300, 1), 1);
+  assert.equal(office.computeScale(100, 100, 2), 1);
+  // dpr inválido cae a 1.
+  assert.equal(office.computeScale(1000, 600, NaN), 3);
+  assert.equal(office.computeScale(1000, 600, 0), 3);
+
+  const { controller, fetchJson } = await startServer({ defaultProjectDir: '.' });
+  try {
+    const { body } = await fetchJson('/');
+    assert.match(body, /class="office-stage"/);
+    // El breakpoint del CSS y el de office.js deben coincidir.
+    assert.ok(body.includes(`@media ${office.SIDE_BY_SIDE_QUERY}`), 'breakpoint de la vista mixta desincronizado');
+  } finally {
+    await controller.close();
+  }
+});
+
 test('poseFor cubre los 7 estados de escena con la tabla del plan (Pixel Office v3 TASK-02)', async () => {
   const office = await import('../ui/office.js');
   assert.deepEqual(office.SCENE_STATES, ['idle', 'planning', 'code', 'fix', 'qa', 'approved', 'changes_required']);

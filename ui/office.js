@@ -94,23 +94,27 @@ export function buildOfficeMap() {
   return { cols, rows, tiles, props, desks };
 }
 
+/** Media query de la vista mixta ancha (franja de tarjetas al costado del canvas); igual a la de index.html. */
+export const SIDE_BY_SIDE_QUERY = '(min-width: 1101px)';
+
 /**
- * Calcula el factor de escala entero (múltiplos de píxel nítidos).
+ * Calcula el factor de escala CSS del canvas, nítido en píxeles físicos: cada píxel lógico
+ * ocupa un número entero de píxeles de pantalla (con dpr 2, 1.5× CSS = 3 px físicos).
  * @param {number} availableWidth Ancho disponible en px CSS.
  * @param {number} availableHeight Alto disponible en px CSS.
- * @returns {number} Entero >= 1; 1 si los argumentos no son números finitos > 0.
+ * @param {number} [dpr] devicePixelRatio; 1 si no es un número finito > 0.
+ * @returns {number} Escala >= 1; 1 si el espacio no es un número finito > 0.
  */
-export function computeScale(availableWidth, availableHeight) {
+export function computeScale(availableWidth, availableHeight, dpr = 1) {
   if (
     !Number.isFinite(availableWidth) || !Number.isFinite(availableHeight) ||
     availableWidth <= 0 || availableHeight <= 0
   ) {
     return 1;
   }
-  return Math.max(
-    1,
-    Math.floor(Math.min(availableWidth / INTERNAL_WIDTH, availableHeight / INTERNAL_HEIGHT))
-  );
+  const ratio = Number.isFinite(dpr) && dpr > 0 ? dpr : 1;
+  const fit = Math.min(availableWidth / INTERNAL_WIDTH, availableHeight / INTERNAL_HEIGHT);
+  return Math.max(1, Math.floor(fit * ratio) / ratio);
 }
 
 // ==============================================================================
@@ -959,11 +963,12 @@ export function createOffice(canvas, options = {}) {
   let lastScale = 0;
   function resize() {
     if (!host) return;
-    const availableWidth = host.clientWidth - 24; // padding del contenedor
-    const availableHeight = host.classList.contains('full-view')
-      ? window.innerHeight * 0.6
-      : window.innerHeight * 0.35;
-    const scale = computeScale(availableWidth, availableHeight);
+    const fullView = host.classList.contains('full-view');
+    // En la vista mixta ancha la franja de tarjetas va al costado: se le reserva su ancho.
+    const sideBySide = !fullView && !!window.matchMedia?.(SIDE_BY_SIDE_QUERY).matches;
+    const availableWidth = host.clientWidth - 24 - (sideBySide ? 280 : 0); // padding (+ franja)
+    const availableHeight = window.innerHeight * (fullView ? 0.6 : 0.4);
+    const scale = computeScale(availableWidth, availableHeight, window.devicePixelRatio);
     if (scale === lastScale) return; // evita bucles con ResizeObserver
     lastScale = scale;
     canvas.style.width = INTERNAL_WIDTH * scale + 'px';
