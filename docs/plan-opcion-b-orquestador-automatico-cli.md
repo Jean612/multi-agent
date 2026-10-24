@@ -83,3 +83,7 @@ Ubicada en `~/.gemini/config/skills/orquestador-equipo/SKILL.md`.
 ## 6. Ventajas y Limitaciones
 * **Ventajas:** Automatización real de principio a fin ("Zero Copy-Paste, Zero Window Switching"). Te permite delegar tareas medianas/grandes y recibir el código ya auditado por Kimi y revisado por Argon.
 * **Limitaciones:** Mientras OpenCode o Kimi están trabajando por CLI en segundo plano, verás su progreso en los logs de la tarea de Antigravity en lugar de ver el texto escribirse letra por letra en tres ventanas separadas (a menos que abras la Opción C).
+
+---
+
+*Firmado por: **Antigravity (Gemini 4 Argon)** — Cerebro & Arquitecto Principal*

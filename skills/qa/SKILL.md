@@ -49,6 +49,9 @@ STATUS: <APPROVED | CHANGES_REQUIRED>
 ## 3. Veredicto Final y Notas para la Wiki
 - **Veredicto:** <1 párrafo corto confirmando si está listo para cierre por Argon o si debe volver a OpenCode.>
 - **Aprendizajes de QA para `wiki-export`:** <Casos borde, bugs sutiles o patrones de seguridad detectados en esta auditoría para que Argon los incluya en la nota atómica de la Wiki.>
+
+---
+*Firmado por: **Kimi Code** — Auditor Senior de QA Quirúrgico*
 ```
 
 4. **Avisar al Usuario:**

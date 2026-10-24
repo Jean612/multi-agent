@@ -4,7 +4,8 @@ description: "Fase 4: Cierre arquitectónico, actualización de .pipeline/ROADMA
 
 Activa y sigue las instrucciones de la skill `pipeline-close`:
 1. Revisa .pipeline/01-PLAN.md, .pipeline/02-HANDOFF.md y .pipeline/03-QA-REPORT.md junto con el git diff final.
-2. Si existe .pipeline/ROADMAP.md, marca la tarea completada con [x].
-3. Exporta las notas técnicas a la Wiki unificada (si aplica).
-4. Archiva los documentos en .pipeline/archive/<fecha>_<slug>/ sin borrarlos con rm.
+2. Si realizas un commit de cierre, incluye al final del mensaje los trailers `Co-Authored-By:` de los agentes participantes (y firma al pie de los docs creados).
+3. Si existe .pipeline/ROADMAP.md, marca la tarea completada con [x].
+4. Exporta las notas técnicas a la Wiki unificada (si aplica).
+5. Archiva los documentos en .pipeline/archive/<fecha>_<slug>/ sin borrarlos con rm.
 $ARGUMENTS

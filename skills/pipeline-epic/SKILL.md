@@ -73,6 +73,9 @@ Transformar una idea grande, proyecto o requerimiento complejo en un **Roadmap d
 
 ## 4. Historial de Progreso
 - (Las tareas completadas se marcarán con [x] y registrarán su fecha aquí al ejecutarse pipeline-close).
+
+---
+*Firmado por: **Antigravity (Gemini 4 Argon)** — Product Owner & Lead Architect*
 ```
 
 4. **Instrucción de Continuación para el Usuario:**

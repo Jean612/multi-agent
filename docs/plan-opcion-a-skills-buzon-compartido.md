@@ -91,3 +91,7 @@ git config --global core.excludesfile ~/.gitignore_global
 ## 5. Ventajas y Limitaciones
 * **Ventajas:** Cero infraestructura nueva, mantienes el control visual total en tus 3 apps oficiales de Mac, y ahorras el máximo posible de cuota en Kimi Code.
 * **Limitaciones:** Sigues teniendo que cambiar de ventana con `Cmd+Tab` y escribir un comando corto de 2-3 palabras para disparar cada fase.
+
+---
+
+*Firmado por: **Antigravity (Gemini 4 Argon)** — Cerebro & Arquitecto Principal*

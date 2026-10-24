@@ -84,3 +84,7 @@ flowchart TD
   * Construir la vista con las 3 columnas en vivo, el selector de proyecto y los botones de *"Mandar a OpenCode"*, *"Pasar a Kimi QA"* y *"Piloto Automático"*.
 * **Fase 3 — Visor de Git Diff y Conector con Antigravity (Día 2):**
   * Agregar el visor de `git diff` integrado y un File Watcher (`chokidar`) sobre `.pipeline/01-PLAN.md`: así, apenas Antigravity (Argon) guarde el plan desde esta ventana, tu GUI lo detecta al instante y arranca la tubería sola.
+
+---
+
+*Firmado por: **Antigravity (Gemini 4 Argon)** — Cerebro & Arquitecto Principal*

@@ -43,7 +43,7 @@ Actúas como **Orquestador del flujo Multi-Agente headless**. Tu única interacc
 5. Para inspección sin gasto de cuota: `pipeline-run loop . --dry-run --json` simula los pasos sin ejecutar agentes reales.
 
 ### Paso 3 — Cierre y Resumen Ejecutivo Obligatorio (Cerebro / Argon)
-1. Si `pipeline-run` terminó en `APPROVED`, ejecuta la skill `pipeline-close` para el visto bueno arquitectónico final, actualización de `.pipeline/ROADMAP.md` (si existe), exportación unificada a la wiki y archivado en `.pipeline/archive/`.
+1. Si `pipeline-run` terminó en `APPROVED`, ejecuta la skill `pipeline-close` para el visto bueno arquitectónico final, commit firmado con `Co-Authored-By:` de los agentes participantes, actualización de `.pipeline/ROADMAP.md` (si existe), exportación unificada a la wiki y archivado en `.pipeline/archive/`.
 2. **OBLIGATORIO — Entregar siempre al usuario un Resumen Ejecutivo estructurado y visual:**
    Al terminar, NO digas solo "quedó listo". Debes renderizar esta ficha resumen:
 
@@ -59,6 +59,9 @@ Actúas como **Orquestador del flujo Multi-Agente headless**. Tu única interacc
    - **Archivado local:** `.pipeline/archive/<carpeta-archivada>/`
    - **Wiki:** ✅ Nota atómica generada y sincronizada (si aplica)
    - **Roadmap:** <Tareas restantes si existe ROADMAP.md o 'Listo para continuar'>
+
+   ---
+   *Firmado por: **Antigravity (Gemini 4 Argon)** — Orquestador Multi-Agente*
    ```
 
 ## Reglas importantes

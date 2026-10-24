@@ -62,3 +62,7 @@ pipeline-ui . --port 4173 --open
 ```bash
 npm test
 ```
+
+---
+
+*Diseñado y construido con **Antigravity (Gemini 4 Argon)**, **OpenCode (GLM 5.3 Flash)** y **Kimi Code**.*

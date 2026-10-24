@@ -78,6 +78,9 @@ Kimi Code revisará el `git diff` verificando:
 - [ ] <Criterio de casos borde / errores 2>
 - [ ] <Criterio de seguridad / rendimiento / tipado 3>
 - [ ] No se introdujeron archivos basura ni cambios fuera del alcance del plan.
+
+---
+*Firmado por: **Antigravity (Gemini 4 Argon)** — Cerebro & Arquitecto Principal*
 ```
 
 4. **Notificar al Usuario:**

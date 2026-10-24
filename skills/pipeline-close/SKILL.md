@@ -15,8 +15,16 @@ Actúas como el **Cerebro / Arquitecto Principal (Gemini 4 Argon)** cerrando el 
    - Lee `.pipeline/03-QA-REPORT.md` (auditoría, casos borde y hallazgos de Kimi Code QA).
    - Verifica que `.pipeline/03-QA-REPORT.md` tenga `STATUS: APPROVED`. (Si aún tiene `STATUS: CHANGES_REQUIRED`, adviértele al usuario qué puntos faltan corregir en OpenCode antes de cerrar).
 
-2. **Inspección Final y Commit (Si aplica):**
+2. **Inspección Final y Commit Firmado (Si aplica):**
    - Ejecuta `git status -s` y `git diff --stat` para confirmar la coherencia arquitectónica.
+   - Al realizar el `git commit` del cierre de la tarea (o cualquier commit de código/docs), **incluye siempre al final del mensaje de commit las firmas `Co-Authored-By:`** de los agentes que intervinieron:
+     ```text
+     Co-Authored-By: Antigravity (Gemini 4 Argon) <noreply@google.com>
+     Co-Authored-By: OpenCode (GLM 5.3 Flash) <noreply@opencode.ai>
+     Co-Authored-By: Kimi Code <noreply@moonshot.ai>
+     ```
+     *(Si estás operando en modo corporativo con Claude Code, incluye `Co-Authored-By: Claude <noreply@anthropic.com>`).*
+   - Si creas o actualizas documentación (como `README.md` o documentos en `docs/`), deja también la firma al pie del documento (`*Firmado por: **Antigravity (Gemini 4 Argon)***`).
 
 3. **Exportación Unificada a la Wiki (`wiki-export` de los 3 Agentes):**
    - Lee y sigue las instrucciones de la skill `wiki-export` (`~/.gemini/config/skills/wiki-export/SKILL.md` o `~/.agents/skills/wiki-export/SKILL.md` si está instalada).

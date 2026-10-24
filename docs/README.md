@@ -20,3 +20,7 @@ Este directorio contiene la documentación técnica y los planes de implementaci
    * **Ideal para:** Hablar únicamente con Antigravity y que él invoque en segundo plano a OpenCode y Kimi Code en bucle hasta que el código pase el control de calidad.
 3. **[Plan Opción C: Interfaz Gráfica Propia (GUI "Mission Control")](./plan-opcion-c-interfaz-grafica-mission-control.md)**
    * **Ideal para:** Tener un Dashboard visual propio (web local o desktop) con 3 columnas en tiempo real que conecte los flujos JSON/ACP de tus agentes en una sola ventana.
+
+---
+
+*Firmado por: **Antigravity (Gemini 4 Argon)** — Cerebro & Arquitecto Principal*

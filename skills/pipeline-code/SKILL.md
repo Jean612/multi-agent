@@ -39,6 +39,9 @@ Cuando el código compile y pase las verificaciones, escribe el archivo `.pipeli
 ## 3. Notas para QA y Aprendizajes para la Wiki
 - **Decisiones / Respuestas a QA:** <Cualquier decisión técnica o respuesta directa a observaciones previas de 03-QA-REPORT.md>
 - **Descubrimientos para `wiki-export`:** <Bugs resueltos, quirks del entorno, patrones o aprendizajes técnicos de esta sesión para que Argon los exporte a la Wiki al cerrar>
+
+---
+*Firmado por: **OpenCode (GLM 5.3 Flash)** — Coder & Iterador*
 ```
 
 ### 4. Avisar al Usuario
