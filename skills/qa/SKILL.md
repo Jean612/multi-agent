@@ -46,8 +46,9 @@ STATUS: <APPROVED | CHANGES_REQUIRED>
    - **Problema:** <Explicación exacta del bug o fallo>
    - **Solución exacta para OpenCode:** <Qué debe cambiar exactamente OpenCode>
 
-## 3. Veredicto Final
-<1 párrafo corto confirmando si está listo para cierre por Argon o si debe volver a OpenCode.>
+## 3. Veredicto Final y Notas para la Wiki
+- **Veredicto:** <1 párrafo corto confirmando si está listo para cierre por Argon o si debe volver a OpenCode.>
+- **Aprendizajes de QA para `wiki-export`:** <Casos borde, bugs sutiles o patrones de seguridad detectados en esta auditoría para que Argon los incluya en la nota atómica de la Wiki.>
 ```
 
 4. **Avisar al Usuario:**
