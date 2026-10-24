@@ -108,10 +108,21 @@ async function appendLog(logFile, content) {
 async function spawnAndLog(command, args, cwd, logFile) {
   await appendLog(logFile, `$ ${command} ${args.map((a) => JSON.stringify(a)).join(' ')}\n\n`);
   const child = spawn(command, args, { cwd, stdio: ['ignore', 'pipe', 'pipe'] });
+  let writeChain = Promise.resolve();
+  const streamChunk = (chunk) => {
+    const text = chunk.toString('utf8');
+    writeChain = writeChain.then(() => appendLog(logFile, text));
+  };
   const outcome = await new Promise((resolve) => {
     const chunks = { stdout: [], stderr: [] };
-    child.stdout.on('data', (chunk) => chunks.stdout.push(chunk));
-    child.stderr.on('data', (chunk) => chunks.stderr.push(chunk));
+    child.stdout.on('data', (chunk) => {
+      chunks.stdout.push(chunk);
+      streamChunk(chunk);
+    });
+    child.stderr.on('data', (chunk) => {
+      chunks.stderr.push(chunk);
+      streamChunk(chunk);
+    });
     child.on('error', (error) => {
       resolve({ exitCode: 127, stdout: '', stderr: error.message, error: error.message });
     });
@@ -123,10 +134,8 @@ async function spawnAndLog(command, args, cwd, logFile) {
       });
     });
   });
-  await appendLog(
-    logFile,
-    `\n--- stdout ---\n${outcome.stdout}\n--- stderr ---\n${outcome.stderr}\n--- exit code: ${outcome.exitCode} ---\n`
-  );
+  await writeChain;
+  await appendLog(logFile, `\n--- exit code: ${outcome.exitCode} ---\n`);
   return outcome;
 }
 
