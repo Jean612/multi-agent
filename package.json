@@ -1,0 +1,13 @@
+{
+  "name": "multi-agent-pipeline",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "CLI para inspeccionar el estado del flujo Multi-Agente (.pipeline/)",
+  "bin": {
+    "pipeline-status": "./bin/pipeline-status.mjs"
+  },
+  "scripts": {
+    "test": "node --test tests/pipeline-status.test.mjs",
+    "status": "node ./bin/pipeline-status.mjs"
+  }
+}
