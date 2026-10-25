@@ -354,6 +354,18 @@ test('resolveModel traduce alias y respeta ids exactos', () => {
   assert.equal(resolveModel('antigravity', 'argon high'), 'gemini-4-argon-high');
   assert.equal(resolveModel('antigravity', 'flash low'), 'gemini-3.8-flash-low');
   assert.equal(resolveModel('antigravity', 'gpt-oss'), 'gpt-oss-120b-medium');
+  // Entradas sin separadores o con puntuación pegada.
+  assert.equal(resolveModel('opencode', 'nemotronultra'), 'opencode/nemotron-3-ultra-free');
+  assert.equal(resolveModel('antigravity', 'gptoss'), 'gpt-oss-120b-medium');
+  assert.equal(resolveModel('antigravity', 'argon high.'), 'gemini-4-argon-high');
+  assert.equal(resolveModel('antigravity', 'argon (high)'), 'gemini-4-argon-high');
+  // Alias con guion + nivel, y prefijo de familia sin versión: se traducen.
+  assert.equal(resolveModel('antigravity', 'claude-sonnet high'), 'claude-sonnet-5-5-high');
+  assert.equal(resolveModel('claude', 'claude-sonnet'), 'claude-sonnet-5-5');
+  // gpt-oss solo existe en nivel medium: no se inventa gpt-oss-120b-high.
+  assert.equal(resolveModel('antigravity', 'gpt-oss high'), 'gpt-oss-120b-medium');
+  // La comparación sin separadores es exacta: no reabre el bug de k3.1 → k3.
+  assert.equal(resolveModel('kimi', 'k31'), 'k31');
   assert.equal(resolveModel('gemini', 'gemini-x'), 'gemini-x');
   assert.equal(resolveModel('opencode', null, { role: 'coder' }), null);
   assert.equal(resolveModel('opencode', null, { role: 'qa' }), 'opencode/deepseek-v4.1-flash-free');

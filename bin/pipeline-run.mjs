@@ -56,6 +56,8 @@ export const MODEL_CATALOG = {
       sonnet: 'claude-sonnet-5-5-medium',
       'gpt-oss': 'gpt-oss-120b-medium',
     },
+    // `agy models` solo ofrece gpt-oss en nivel medium: no se le cambia el nivel.
+    fixedEffort: ['gpt-oss'],
   },
   gemini: { default: null, aliases: {} },
 };
@@ -99,6 +101,9 @@ export function isValidAgent(agent) {
  */
 const FULL_MODEL_ID = /^(claude|gemini|gpt|kimi)-.*\d/;
 
+/** Niveles de esfuerzo de los modelos de Antigravity (`gemini-4-argon-high`, etc.). */
+const EFFORT_LEVELS = ['low', 'medium', 'high'];
+
 /**
  * Traduce un alias de modelo ("sonnet 5.5", "glm", "argon high") al id exacto del CLI del agente.
  * Pura: no invoca ningún CLI. Un id completo o desconocido se devuelve tal cual, para no
@@ -123,23 +128,23 @@ export function resolveModel(agent, input, { role = 'coder' } = {}) {
   ) {
     return trimmed;
   }
-  if (!Object.hasOwn(catalog.aliases, normalized) && /^(?:claude|gemini|gpt|kimi)-|^opencode\//.test(normalized)) {
-    return trimmed;
-  }
-
-  const effort = agent === 'antigravity'
-    ? normalized.match(/(?:^|[\s-])(low|medium|high)(?:$|[\s-])/)?.[1]
-    : null;
-  const words = normalized.split(/[\s-]+/).filter(Boolean);
-  const alias = Object.keys(catalog.aliases)
-    .sort((a, b) => b.length - a.length)
-    .find((key) => {
-      const aliasWords = key.split(/[\s-]+/).filter(Boolean);
-      return words.some((_, index) => aliasWords.every((word, offset) => words[index + offset] === word));
-    });
+  // Palabras de la entrada: cualquier signo separa ("argon (high)."), pero el punto dentro de
+  // una versión se conserva ("5.5", "k3.1") para no confundir k3.1 con el alias k3.
+  const words = normalized
+    .split(/[^a-z0-9.]+/)
+    .map((word) => word.replace(/^\.+|\.+$/g, ''))
+    .filter(Boolean);
+  const effort = agent === 'antigravity' ? words.find((word) => EFFORT_LEVELS.includes(word)) : null;
+  const aliasWords = (key) => key.split(/[\s-]+/).filter(Boolean);
+  const keys = Object.keys(catalog.aliases).sort((a, b) => b.length - a.length);
+  // Un alias coincide como secuencia completa de palabras; si la entrada es una sola palabra
+  // sin separadores ("nemotronultra", "gptoss"), también contra el alias sin separadores.
+  const alias =
+    keys.find((key) => words.some((_, index) => aliasWords(key).every((word, offset) => words[index + offset] === word))) ??
+    (words.length === 1 ? keys.find((key) => aliasWords(key).join('') === words[0]) : undefined);
   if (!alias) return trimmed;
   const resolved = catalog.aliases[alias];
-  return effort ? resolved.replace(/-medium$/, `-${effort}`) : resolved;
+  return effort && !catalog.fixedEffort?.includes(alias) ? resolved.replace(/-medium$/, `-${effort}`) : resolved;
 }
 
 /**
