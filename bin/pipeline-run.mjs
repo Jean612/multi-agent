@@ -130,10 +130,13 @@ export function resolveModel(agent, input, { role = 'coder' } = {}) {
   const effort = agent === 'antigravity'
     ? normalized.match(/(?:^|[\s-])(low|medium|high)(?:$|[\s-])/)?.[1]
     : null;
-  const compact = normalized.replace(/[-\s.]/g, '');
+  const words = normalized.split(/[\s-]+/).filter(Boolean);
   const alias = Object.keys(catalog.aliases)
     .sort((a, b) => b.length - a.length)
-    .find((key) => normalized.includes(key) || compact.includes(key.replace(/[-\s.]/g, '')));
+    .find((key) => {
+      const aliasWords = key.split(/[\s-]+/).filter(Boolean);
+      return words.some((_, index) => aliasWords.every((word, offset) => words[index + offset] === word));
+    });
   if (!alias) return trimmed;
   const resolved = catalog.aliases[alias];
   return effort ? resolved.replace(/-medium$/, `-${effort}`) : resolved;

@@ -350,6 +350,7 @@ test('resolveModel traduce alias y respeta ids exactos', () => {
   assert.equal(resolveModel('opencode', 'opencode/beam-free'), 'opencode/beam-free');
   assert.equal(resolveModel('kimi', null), 'kimi-code/k3');
   assert.equal(resolveModel('kimi', 'kimi code 3'), 'kimi-code/k3');
+  assert.equal(resolveModel('kimi', 'k3.1'), 'k3.1');
   assert.equal(resolveModel('antigravity', 'argon high'), 'gemini-4-argon-high');
   assert.equal(resolveModel('antigravity', 'flash low'), 'gemini-3.8-flash-low');
   assert.equal(resolveModel('antigravity', 'gpt-oss'), 'gpt-oss-120b-medium');
