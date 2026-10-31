@@ -30,6 +30,21 @@ También soporta flags no interactivos:
 ./install.sh --mode claude --claude-dir ~/.claude-cf
 ```
 
+### Modo 2: `/auto` nativo con subagentes
+
+En el modo 2, `/auto` no usa `pipeline-run`. El plan y el cierre los hace la sesión de Claude Code (CLI o Desktop), y el coder y el QA corren como subagentes de esa misma sesión:
+
+| Rol | Subagente | Modelo por defecto | Herramientas |
+|---|---|---|---|
+| Coder (`code` / `fix`) | `pipeline-coder` | `sonnet` | Read, Edit, Write, Bash, Grep, Glob |
+| QA | `pipeline-qa` | `haiku` | Read, Write, Bash (sin Edit ni búsquedas) |
+
+* Los subagentes heredan los permisos de la sesión: no hace falta `bypassPermissions` y no hay timeout de Bash que corte el bucle.
+* El modelo se cambia en el pedido: `/auto TASK-03 con opus de coder`.
+* `.pipeline/runtime.json` se sigue escribiendo, así que `pipeline-ui` y `pipeline-status` funcionan igual (en Desktop, `pipeline-ui` se puede abrir en el panel de navegador).
+* El instalador enlaza `claude-native/agents/*.md` en `<carpeta de Claude>/agents/`, `claude-native/commands/auto.md` como `/auto` y la skill `pipeline-auto-native` en lugar de `pipeline-auto`.
+* `claude-native/agents/*.md` se generan desde `skills/pipeline-code` y `skills/qa` con `node scripts/sync-agent-commands.mjs`: edita la skill, no el subagente.
+
 ---
 
 ## 🛠️ Modos de Uso

@@ -10,6 +10,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SKILLS_SRC="$SCRIPT_DIR/skills"
 COMMANDS_SRC="$SCRIPT_DIR/commands"
 AGENT_COMMANDS_SRC="$SCRIPT_DIR/agent-commands"
+CLAUDE_NATIVE_SRC="$SCRIPT_DIR/claude-native"
 BIN_SRC="$SCRIPT_DIR/bin"
 
 USER_HOME="${HOME:-$HOME}"
@@ -77,14 +78,20 @@ safe_link() {
   fi
 }
 
-# Enlaza todas las skills del pipeline en un directorio de skills.
-link_all_skills() {
-  local dest_dir="$1"
-  for skill_path in "$SKILLS_SRC"/*; do
+# Enlaza cada skill (subcarpeta) de un directorio fuente en un directorio de skills.
+link_all_skills_from() {
+  local src_dir="$1"
+  local dest_dir="$2"
+  for skill_path in "$src_dir"/*; do
     if [ -d "$skill_path" ]; then
       safe_link "$skill_path" "$dest_dir/$(basename "$skill_path")"
     fi
   done
+}
+
+# Enlaza todas las skills del pipeline en un directorio de skills.
+link_all_skills() {
+  link_all_skills_from "$SKILLS_SRC" "$1"
 }
 
 # Enlaza las skills-comando generadas (agent-commands/skills/<cmd>) en un directorio de skills,
@@ -119,6 +126,7 @@ if [ -z "$MODE" ]; then
   echo ""
   echo "  [2] Solo Claude Code (Corporativo / Trabajo)"
   echo "      -> Sin OpenCode ni Kimi Code. Instala exclusivamente en tu carpeta de Claude."
+  echo "      -> /auto usa subagentes nativos (pipeline-coder y pipeline-qa), sin pipeline-run."
   echo "      -> Te permite elegir la carpeta de config (ej. ~/.claude o ~/.claude-cf)."
   echo ""
   read -r -p "Ingresa una opción [1 o 2, por defecto 1]: " OPTION_CHOICE
@@ -161,10 +169,15 @@ if [ -n "$CLAUDE_TARGET_DIR" ]; then
   CLAUDE_COMMANDS="$CLAUDE_TARGET_DIR/commands"
   mkdir -p "$CLAUDE_SKILLS" "$CLAUDE_COMMANDS"
 
+  # En modo 'claude', /auto es el nativo (subagentes pipeline-coder y pipeline-qa) y no
+  # pipeline-auto, que lanza `claude -p` por pipeline-run pensando en otros agentes.
   echo "📦 Enlazando skills en Claude Code ($CLAUDE_TARGET_DIR)..."
   for skill_path in "$SKILLS_SRC"/*; do
     if [ -d "$skill_path" ]; then
       skill_name="$(basename "$skill_path")"
+      if [ "$MODE" = "claude" ] && [ "$skill_name" = "pipeline-auto" ]; then
+        continue
+      fi
       safe_link "$skill_path" "$CLAUDE_SKILLS/$skill_name"
     fi
   done
@@ -173,9 +186,35 @@ if [ -n "$CLAUDE_TARGET_DIR" ]; then
   for cmd_file in "$COMMANDS_SRC"/*.md; do
     if [ -f "$cmd_file" ]; then
       cmd_name="$(basename "$cmd_file")"
+      if [ "$MODE" = "claude" ] && [ "$cmd_name" = "auto.md" ]; then
+        continue
+      fi
       safe_link "$cmd_file" "$CLAUDE_COMMANDS/$cmd_name"
     fi
   done
+
+  if [ "$MODE" = "claude" ]; then
+    CLAUDE_AGENTS="$CLAUDE_TARGET_DIR/agents"
+    mkdir -p "$CLAUDE_AGENTS"
+
+    echo "🤖 Enlazando /auto nativo y subagentes pipeline-coder (sonnet) y pipeline-qa (haiku)..."
+    link_all_skills_from "$CLAUDE_NATIVE_SRC/skills" "$CLAUDE_SKILLS"
+    safe_link "$CLAUDE_NATIVE_SRC/commands/auto.md" "$CLAUDE_COMMANDS/auto.md"
+    for agent_file in "$CLAUDE_NATIVE_SRC/agents"/*.md; do
+      if [ -f "$agent_file" ]; then
+        safe_link "$agent_file" "$CLAUDE_AGENTS/$(basename "$agent_file")"
+      fi
+    done
+
+    # Una instalación 'multi' previa dejó la skill pipeline-auto enlazada: se quita solo si apunta a este repo.
+    if [ -L "$CLAUDE_SKILLS/pipeline-auto" ] && [ "$(readlink "$CLAUDE_SKILLS/pipeline-auto")" = "$SKILLS_SRC/pipeline-auto" ]; then
+      if [ "$DRY_RUN" = true ]; then
+        echo "[dry-run] rm \"$CLAUDE_SKILLS/pipeline-auto\""
+      else
+        rm "$CLAUDE_SKILLS/pipeline-auto"
+      fi
+    fi
+  fi
   echo "✅ Claude Code configurado con éxito en: $CLAUDE_TARGET_DIR"
 fi
 
@@ -272,7 +311,7 @@ if [ "$MODE" = "claude" ]; then
   echo "En tu terminal de Claude Code ($CLAUDE_TARGET_DIR) tienes disponible:"
   echo "  • /epic   -> Planificar y refinar la épica (.pipeline/ROADMAP.md)"
   echo "  • /plan   -> Crear el plan técnico de la tarea (.pipeline/01-PLAN.md)"
-  echo "  • /auto   -> Modo 100% automático (Plan + pipeline-run loop + Close)"
+  echo "  • /auto   -> Modo 100% automático (Plan + subagentes pipeline-coder/pipeline-qa + Close)"
   echo "  • /code   -> Implementar el plan y generar handoff (.pipeline/02-HANDOFF.md)"
   echo "  • /fix    -> Corregir observaciones de QA"
   echo "  • /qa     -> Auditar el git diff en modo ahorro de tokens"

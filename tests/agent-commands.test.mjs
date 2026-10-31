@@ -1,6 +1,7 @@
 /**
  * Tests de scripts/sync-agent-commands.mjs: los slash commands generados para Kimi Code,
- * Antigravity (skills-comando) y Gemini CLI (TOML) deben estar sincronizados con commands/*.md.
+ * Antigravity (skills-comando) y Gemini CLI (TOML) deben estar sincronizados con commands/*.md,
+ * y los subagentes de Claude del modo 2 nativo, con sus skills.
  * 100% Node.js nativo.
  */
 import { test } from 'node:test';
@@ -66,4 +67,28 @@ test('install.sh enlaza los comandos en Kimi (sin /plan ni /auto internos), Anti
   assert.match(install, /link_all_skills "\$KIMI_SKILLS"/);
   assert.match(install, /link_all_skills "\$AGY_SKILLS"/);
   assert.match(install, /GEMINI_COMMANDS="\$USER_HOME\/\.gemini\/commands"/);
+});
+
+test('los subagentes de Claude (modo 2 nativo) llevan su skill, su modelo y el QA no puede editar', async () => {
+  const agents = { 'pipeline-coder': { skill: 'pipeline-code', model: 'sonnet' }, 'pipeline-qa': { skill: 'qa', model: 'haiku' } };
+  for (const [name, { skill, model }] of Object.entries(agents)) {
+    const agent = await fs.readFile(path.join(REPO_DIR, 'claude-native', 'agents', `${name}.md`), 'utf8');
+    assert.match(agent, new RegExp(`^---\\nname: ${name}\\n`), `${name}: name no coincide con el archivo`);
+    assert.match(agent, new RegExp(`^model: ${model}$`, 'm'), `${name}: modelo por defecto`);
+    const skillBody = parseCommand(await fs.readFile(path.join(REPO_DIR, 'skills', skill, 'SKILL.md'), 'utf8')).body;
+    assert.ok(agent.includes(skillBody), `${name}: no incluye el cuerpo de skills/${skill}`);
+    assert.match(agent, /subagente de `\/auto`/, `${name}: falta el contexto de subagente`);
+  }
+  const qa = await fs.readFile(path.join(REPO_DIR, 'claude-native', 'agents', 'pipeline-qa.md'), 'utf8');
+  assert.match(qa, /^tools: Read, Write, Bash$/m, 'el QA solo lee, escribe su reporte y corre git');
+});
+
+test('install.sh en modo claude usa el /auto nativo y enlaza los subagentes', async () => {
+  const install = await fs.readFile(path.join(REPO_DIR, 'install.sh'), 'utf8');
+  assert.match(install, /"\$MODE" = "claude" \] && \[ "\$skill_name" = "pipeline-auto" \]/);
+  assert.match(install, /"\$MODE" = "claude" \] && \[ "\$cmd_name" = "auto\.md" \]/);
+  assert.match(install, /safe_link "\$CLAUDE_NATIVE_SRC\/commands\/auto\.md" "\$CLAUDE_COMMANDS\/auto\.md"/);
+  assert.match(install, /link_all_skills_from "\$CLAUDE_NATIVE_SRC\/skills" "\$CLAUDE_SKILLS"/);
+  assert.match(install, /for agent_file in "\$CLAUDE_NATIVE_SRC\/agents"\/\*\.md/);
+  await fs.access(path.join(REPO_DIR, 'claude-native', 'skills', 'pipeline-auto-native', 'SKILL.md'));
 });
