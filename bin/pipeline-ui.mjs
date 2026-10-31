@@ -143,11 +143,17 @@ export async function readPipelineFiles(projectDir) {
 
 /**
  * Descubre proyectos locales: subdirectorios de primer nivel del padre de baseDir
- * (y baseDir mismo) que contengan `.git` o `.pipeline`.
+ * (y baseDir mismo) que contengan `.git` o `.pipeline`. Si baseDir no existe, no hay
+ * proyecto activo y devuelve `[]` en vez de listar el padre (p. ej. todo `/tmp`).
  * @param {string} baseDir Directorio base del proyecto activo.
  * @returns {Promise<Array<{name: string, path: string, hasPipeline: boolean}>>}
  */
 export async function discoverProjects(baseDir) {
+  try {
+    if (!(await fs.stat(baseDir)).isDirectory()) return [];
+  } catch {
+    return [];
+  }
   const seen = new Set();
   const results = [];
   const possibleRoots = [path.dirname(baseDir), baseDir];
